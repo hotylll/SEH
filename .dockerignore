@@ -1,0 +1,14 @@
+__pycache__
+*.py[cod]
+.pytest_cache
+.coverage
+.git
+.gitignore
+data/
+reports/
+*.db
+**/*.md
+项目文档/
+GB856T——88/
+tools/
+分工与要求记录.md
