@@ -6,7 +6,7 @@ from pathlib import Path
 from collections.abc import Iterator
 from typing import Any
 
-from app.analysis import calculate_trends, clean_raw_item, content_hash
+from app.analysis import calculate_trends, clean_raw_item, content_hash, validate_clean_result
 from app.schemas import DataSource, RawItem, utc_now
 
 
@@ -374,7 +374,7 @@ class Repository:
         except sqlite3.IntegrityError:
             return False
         raw_id = int(cursor.lastrowid)
-        clean = clean_raw_item(raw)
+        clean = validate_clean_result(clean_raw_item(raw))
         conn.execute(
             """
             INSERT INTO clean_items(raw_id, normalized_title, normalized_content, keywords, quality_score, created_at)
