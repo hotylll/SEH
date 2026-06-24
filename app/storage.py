@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -41,6 +42,7 @@ except ImportError:  # pragma: no cover - exercised in environments without repo
 
 from app.analysis import calculate_trends, clean_raw_item, content_hash, validate_clean_result
 from app.crawler import collect_from_exa, collect_from_searxng, is_exa_endpoint, is_searxng_endpoint
+from app.llm import filter_trend_topics
 from app.schemas import DataSource, RawItem, ValidationError, utc_now
 
 
@@ -1023,6 +1025,8 @@ class Repository:
             """
         ).fetchall()
         trends = calculate_trends(dict(row) for row in rows)
+        # 过滤无意义热词（规则兜底+可选AI增强）
+        trends = filter_trend_topics(trends, max_topics=max(50, len(trends)))
         # 从数据中自动提取统计周期
         dates = [str(row["published_at"] or utc_now())[:10] for row in rows]
         period_start = min(dates) if dates else utc_now()[:10]

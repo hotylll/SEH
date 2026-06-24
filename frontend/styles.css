@@ -144,12 +144,15 @@ button.is-busy::after {
   position: absolute;
   width: 15px;
   height: 15px;
-  border: 2px solid currentColor;
+  border: 2px solid rgba(29, 29, 31, .45);
   border-top-color: transparent;
   border-radius: 50%;
-  color: inherit;
-  filter: invert(1);
   animation: spin .78s linear infinite;
+}
+
+button.primary.is-busy::after {
+  border-color: rgba(255, 255, 255, .86);
+  border-top-color: transparent;
 }
 
 .app-header {
@@ -428,6 +431,11 @@ th:nth-child(6) {
   font-variant-numeric: tabular-nums;
 }
 
+td:last-child,
+th:last-child {
+  width: 132px;
+}
+
 .empty-cell {
   height: 78px;
   color: var(--muted);
@@ -487,6 +495,18 @@ th:nth-child(6) {
   border-color: rgba(0, 113, 227, .18);
   background: rgba(0, 113, 227, .08);
   font-size: 13px;
+}
+
+.action-btn.danger {
+  color: var(--danger);
+  border-color: rgba(215, 0, 21, .16);
+  background: var(--danger-soft);
+}
+
+.action-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
 }
 
 .bar-row {
@@ -823,10 +843,15 @@ th:nth-child(6) {
 
 .modal-head button { margin-left: auto; }
 
+.modal-section-title {
+  margin: 8px 0 12px;
+  font-size: 16px;
+}
+
 .activity-dock {
   position: fixed;
   right: 18px;
-  bottom: 18px;
+  bottom: 76px;
   z-index: 55;
   width: min(390px, calc(100vw - 36px));
   padding: 14px;
@@ -863,6 +888,14 @@ th:nth-child(6) {
   border-radius: 50%;
   background: var(--primary);
   animation: softPulse 1.2s ease-in-out infinite;
+}
+
+.activity-dock[data-state="success"] .activity-pulse {
+  background: var(--success);
+}
+
+.activity-dock[data-state="error"] .activity-pulse {
+  background: var(--danger);
 }
 
 .activity-track {
@@ -951,7 +984,7 @@ th:nth-child(6) {
   .toolbar > select { flex: 1 1 140px; }
   .detail-grid { grid-template-columns: 1fr; }
   .page-title { font-size: 21px; }
-  .activity-dock { right: 12px; bottom: 12px; width: calc(100vw - 24px); }
+  .activity-dock { right: 12px; bottom: 72px; width: calc(100vw - 24px); }
 }
 
 @media (prefers-reduced-motion: reduce) {

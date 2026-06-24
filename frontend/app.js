@@ -3,7 +3,15 @@
     const modal = document.querySelector("#detailModal");
     const modalTitle = document.querySelector("#modalTitle");
     const modalBody = document.querySelector("#modalBody");
+    const activityDock = document.querySelector("#activityDock");
+    const activityTitle = document.querySelector("#activityTitle");
+    const activitySubtitle = document.querySelector("#activitySubtitle");
+    const activityProgress = document.querySelector("#activityProgress");
+    const activitySteps = document.querySelector("#activitySteps");
     let toastTimer = 0;
+    let activityTimer = 0;
+    let activityHideTimer = 0;
+    let analysisTimer = 0;
     apiInput.value = localStorage.getItem("apiBase") || apiInput.value;
 
     function apiBase() {
@@ -16,6 +24,88 @@
       toast.textContent = text;
       toast.classList.add("show");
       toastTimer = window.setTimeout(() => toast.classList.remove("show"), 2800);
+    }
+
+    function setButtonBusy(button, busy) {
+      if (!button) return;
+      button.classList.toggle("is-busy", busy);
+      button.disabled = busy;
+    }
+
+    function renderStepNodes(container, steps) {
+      container.replaceChildren();
+      steps.forEach(step => {
+        const node = document.createElement("div");
+        node.className = "activity-step";
+        node.textContent = step;
+        container.appendChild(node);
+      });
+    }
+
+    function setStepState(nodes, index) {
+      nodes.forEach((node, itemIndex) => {
+        node.classList.toggle("done", itemIndex < index);
+        node.classList.toggle("active", itemIndex === index);
+      });
+    }
+
+    function showActivity(title, steps) {
+      if (!activityDock) return;
+      window.clearTimeout(activityHideTimer);
+      window.clearInterval(activityTimer);
+      activityTitle.textContent = title;
+      activitySubtitle.textContent = steps[0] || "正在处理";
+      activityProgress.style.width = "10%";
+      renderStepNodes(activitySteps, steps);
+      setStepState([...activitySteps.children], 0);
+      activityDock.dataset.state = "active";
+      activityDock.hidden = false;
+    }
+
+    function updateActivity(index, steps) {
+      if (!activityDock) return;
+      const stepIndex = Math.min(index, Math.max(steps.length - 1, 0));
+      const percent = steps.length <= 1 ? 70 : Math.round(((stepIndex + 1) / steps.length) * 88);
+      activitySubtitle.textContent = steps[stepIndex] || "正在处理";
+      activityProgress.style.width = `${percent}%`;
+      setStepState([...activitySteps.children], stepIndex);
+    }
+
+    function finishActivity(success, message) {
+      if (!activityDock) return;
+      window.clearInterval(activityTimer);
+      activitySubtitle.textContent = message;
+      activityProgress.style.width = "100%";
+      activityDock.dataset.state = success ? "success" : "error";
+      [...activitySteps.children].forEach(node => {
+        node.classList.remove("active");
+        node.classList.toggle("done", success);
+      });
+      activityHideTimer = window.setTimeout(() => {
+        activityDock.hidden = true;
+      }, success ? 1100 : 1800);
+    }
+
+    async function runTask({ button, title, steps, successMessage }, task) {
+      const taskSteps = steps && steps.length ? steps : ["正在处理"];
+      setButtonBusy(button, true);
+      showActivity(title, taskSteps);
+      let stepIndex = 0;
+      activityTimer = window.setInterval(() => {
+        stepIndex = Math.min(stepIndex + 1, taskSteps.length - 1);
+        updateActivity(stepIndex, taskSteps);
+      }, 900);
+      try {
+        const result = await task();
+        finishActivity(true, successMessage || "处理完成");
+        return result;
+      } catch (error) {
+        finishActivity(false, "处理失败");
+        throw error;
+      } finally {
+        window.clearInterval(activityTimer);
+        setButtonBusy(button, false);
+      }
     }
 
     async function request(path, options = {}) {
@@ -107,12 +197,12 @@
       return badge(Number.isFinite(value) ? value.toFixed(1) : "-", className);
     }
 
-    function actionButton(label, onClick) {
+    function actionButton(label, onClick, className = "action-btn") {
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "action-btn";
+      button.className = className;
       button.textContent = label;
-      button.addEventListener("click", onClick);
+      button.addEventListener("click", () => Promise.resolve(onClick(button)).catch(error => showToast(error.message)));
       return button;
     }
 
@@ -249,32 +339,49 @@
       setTable("#sourceTable",
         ["ID", "名称", "类型", "周期", "状态", "关键词", "操作"],
         state.sources.map(s => {
-          const grp = document.createElement("span"); grp.style.cssText = "display:flex;gap:5px;flex-wrap:wrap";
+          const grp = document.createElement("span");
+          grp.className = "action-group";
           grp.append(
-            actionButton("▶ 采集", () => collectSource(s.id)),
-            actionButton("✕ 删除", () => deleteSource(s.id), "action-btn danger")
+            actionButton("采集", button => collectSource(s.id, button)),
+            actionButton("删除", button => deleteSource(s.id, button), "action-btn danger")
           );
           return [s.id, s.name, s.source_type, s.schedule || "-", statusBadge(s.status), s.keywords || "-", grp];
         })
       );
     }
 
-    async function deleteSource(id) {
+    async function deleteSource(id, button) {
       if (!confirm(`确定要删除数据源 #${id} 及其所有关联数据吗？`)) return;
-      await request(`/api/v1/sources/${id}`, { method: "DELETE" });
-      showToast("✅ 数据源已删除");
-      await Promise.all([loadSources(), loadItems(), loadTrends()]);
+      await runTask({
+        button,
+        title: `删除数据源 #${id}`,
+        steps: ["确认关联数据", "删除数据源记录", "刷新列表与趋势"],
+        successMessage: "数据源已删除"
+      }, async () => {
+        await request(`/api/v1/sources/${id}`, { method: "DELETE" });
+        showToast("数据源已删除");
+        await Promise.all([loadSources(), loadItems(), loadTrends()]);
+        updateLastSync();
+      });
     }
 
-    async function collectSource(id) {
-      const data = await request("/api/v1/tasks/collect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source_id: id })
+    async function collectSource(id, button) {
+      await runTask({
+        button,
+        title: `采集数据源 #${id}`,
+        steps: ["连接数据源", "检索公开结果", "清洗去重入库", "重建趋势指标"],
+        successMessage: "采集流程已完成"
+      }, async () => {
+        const data = await request("/api/v1/tasks/collect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ source_id: id })
+        });
+        showToast(`采集完成：新增 ${data.success_count} 条${data.duplicate_count ? `，重复 ${data.duplicate_count} 条` : ""}`);
+        await Promise.all([loadItems(), loadTrends()]);
+        updateLastSync();
+        return data;
       });
-      showToast(`✅ 采集完成：新增 ${data.success_count} 条${data.duplicate_count ? `，重复 ${data.duplicate_count} 条` : ""}`);
-      await Promise.all([loadItems(), loadTrends()]);
-      updateLastSync();
     }
 
     async function showItemDetail(id) {
@@ -304,7 +411,7 @@
       ]));
       const title = document.createElement("h2");
       title.textContent = "关联信息";
-      title.style.margin = "8px 0 12px";
+      title.className = "modal-section-title";
       wrap.appendChild(title);
       wrap.appendChild(buildTable(
         ["ID", "标题", "发布时间", "关键词", "质量"],
@@ -319,26 +426,35 @@
       showModal("主题详情", wrap);
     }
 
-    async function createSource() {
+    async function createSource(button) {
       const name = document.querySelector("#srcName").value.trim();
       if (!name) { showToast("请输入数据源名称"); document.querySelector("#srcName").focus(); return; }
       const endpoint = document.querySelector("#srcEndpoint").value.trim();
       if (!endpoint) { showToast("请输入 endpoint 地址"); document.querySelector("#srcEndpoint").focus(); return; }
       const keywords = document.querySelector("#srcKeywords").value.trim();
       if (!keywords) { showToast("请输入关键词，多个用逗号分隔"); document.querySelector("#srcKeywords").focus(); return; }
-      const data = await request("/api/v1/sources", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name, type: document.querySelector("#srcType").value, endpoint, keywords,
-          schedule: document.querySelector("#srcSchedule").value, status: document.querySelector("#srcStatus").value
-        })
+      await runTask({
+        button,
+        title: "保存数据源",
+        steps: ["校验表单字段", "写入数据源配置", "刷新数据源列表"],
+        successMessage: "数据源已保存"
+      }, async () => {
+        const data = await request("/api/v1/sources", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name, type: document.querySelector("#srcType").value, endpoint, keywords,
+            schedule: document.querySelector("#srcSchedule").value, status: document.querySelector("#srcStatus").value
+          })
+        });
+        showToast(`数据源已创建：${data.name}`);
+        document.querySelector("#srcName").value = "";
+        document.querySelector("#srcKeywords").value = "";
+        document.querySelector("#srcEndpoint").value = "";
+        await loadSources();
+        updateLastSync();
+        return data;
       });
-      showToast(`✅ 数据源已创建：${data.name}`);
-      document.querySelector("#srcName").value = "";
-      document.querySelector("#srcKeywords").value = "";
-      document.querySelector("#srcEndpoint").value = "";
-      await loadSources();
     }
 
     async function loadReports() {
@@ -359,27 +475,43 @@
       window.open(apiBase() + report.download_url, "_blank", "noopener");
     }
 
-    async function createReport() {
-      const data = await request("/api/v1/reports", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          report_type: document.querySelector("#reportType").value,
-          format: document.querySelector("#reportFormat").value,
-          generated_by: document.querySelector("#generatedBy").value || "罗元恒"
-        })
+    async function createReport(button) {
+      await runTask({
+        button,
+        title: "生成报表文件",
+        steps: ["读取趋势与信息数据", "生成文件内容", "写入报表记录", "刷新报表列表"],
+        successMessage: "报表文件已生成"
+      }, async () => {
+        const data = await request("/api/v1/reports", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            report_type: document.querySelector("#reportType").value,
+            format: document.querySelector("#reportFormat").value,
+            generated_by: document.querySelector("#generatedBy").value || "罗元恒"
+          })
+        });
+        const result = document.querySelector("#reportResult");
+        const download = actionButton("下载", () => downloadReport(data));
+        result.replaceChildren(`${data.report_name} / ${data.file_path} `, download);
+        showToast("报表文件已生成");
+        await loadReports();
+        updateLastSync();
+        return data;
       });
-      const result = document.querySelector("#reportResult");
-      const download = actionButton("下载", () => downloadReport(data));
-      result.replaceChildren(`${data.report_name} / ${data.file_path} `, download);
-      showToast("报表文件已生成");
-      await loadReports();
     }
 
-    async function refreshAll() {
+    async function refreshAll(button) {
       try {
+        await runTask({
+          button,
+          title: "同步全局数据",
+          steps: ["检查服务状态", "读取数据源", "加载信息明细", "刷新趋势榜单", "同步报表记录"],
+          successMessage: "全部面板已同步"
+        }, async () => {
         await Promise.all([loadHealth(), loadSources(), loadItems(), loadTrends(), loadReports()]);
         updateLastSync();
+        });
       } catch (error) {
         showToast("刷新失败: " + error.message);
       }
@@ -546,6 +678,44 @@
       });
     }
 
+    const analysisStages = ["连接搜索源", "筛选可信来源", "调用 AI 分析", "整理报告结构"];
+
+    function updateAnalysisMotion(index, failed = false) {
+      const stage = document.querySelector("#analysisStage");
+      const progress = document.querySelector("#analysisProgress");
+      const stepNodes = [...document.querySelectorAll("#analysisStepList .analysis-step")];
+      const stepIndex = Math.min(index, analysisStages.length - 1);
+      stage.textContent = failed ? "分析失败，请检查配置或网络" : analysisStages[stepIndex];
+      progress.style.width = failed ? "38%" : `${Math.round(((stepIndex + 1) / analysisStages.length) * 100)}%`;
+      stepNodes.forEach((node, itemIndex) => {
+        node.classList.toggle("done", !failed && itemIndex < stepIndex);
+        node.classList.toggle("active", !failed && itemIndex === stepIndex);
+      });
+    }
+
+    function startAnalysisMotion() {
+      window.clearInterval(analysisTimer);
+      let index = 0;
+      updateAnalysisMotion(index);
+      analysisTimer = window.setInterval(() => {
+        index = Math.min(index + 1, analysisStages.length - 1);
+        updateAnalysisMotion(index);
+      }, 1100);
+    }
+
+    function finishAnalysisMotion(success) {
+      window.clearInterval(analysisTimer);
+      if (success) {
+        updateAnalysisMotion(analysisStages.length - 1);
+        document.querySelectorAll("#analysisStepList .analysis-step").forEach(node => {
+          node.classList.remove("active");
+          node.classList.add("done");
+        });
+      } else {
+        updateAnalysisMotion(0, true);
+      }
+    }
+
     async function startAnalyze() {
       const topicInput = document.querySelector("#analyzeTopic");
       const topic = topicInput.value.trim();
@@ -564,15 +734,23 @@
       resultDiv.hidden = true;
       emptyDiv.hidden = true;
       loadingDiv.classList.add("show");
-      startButton.disabled = true;
+      startAnalysisMotion();
 
       try {
-        const data = await request("/api/v1/analyze", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ topic })
+        const data = await runTask({
+          button: startButton,
+          title: "智能分析",
+          steps: analysisStages,
+          successMessage: "分析报告已生成"
+        }, async () => {
+          return request("/api/v1/analyze", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ topic })
+          });
         });
 
+        finishAnalysisMotion(true);
         renderMarkdownInto(contentDiv, data.analysis);
         renderSourceList(data.sources || []);
         badgeSpan.textContent = `${data.source_count || 0} 个来源`;
@@ -580,11 +758,11 @@
         resultDiv.hidden = false;
         showToast(`分析完成，共 ${data.source_count || 0} 个信息来源`);
       } catch (error) {
+        finishAnalysisMotion(false);
         emptyDiv.hidden = false;
         showToast("分析失败：" + error.message);
       } finally {
         loadingDiv.classList.remove("show");
-        startButton.disabled = false;
       }
     }
 
@@ -606,23 +784,72 @@
     document.querySelectorAll("nav button").forEach(button => {
       button.addEventListener("click", () => activateView(button.dataset.view));
     });
-    document.querySelector("#saveApi").addEventListener("click", () => {
+    document.querySelector("#saveApi").addEventListener("click", event => {
       localStorage.setItem("apiBase", apiInput.value);
-      refreshAll();
+      refreshAll(event.currentTarget);
     });
-    document.querySelector("#refreshAll").addEventListener("click", refreshAll);
-    document.querySelector("#loadTrends").addEventListener("click", () => loadTrends().then(updateLastSync).catch(e => showToast(e.message)));
-    document.querySelector("#searchItems").addEventListener("click", () => loadItems().then(updateLastSync).catch(e => showToast(e.message)));
-    document.querySelector("#loadSources").addEventListener("click", () => loadSources().then(updateLastSync).catch(e => showToast(e.message)));
-    document.querySelector("#loadReports").addEventListener("click", () => loadReports().then(updateLastSync).catch(e => showToast(e.message)));
-    document.querySelector("#createSource").addEventListener("click", () => createSource().catch(e => showToast(e.message)));
-    document.querySelector("#createReport").addEventListener("click", () => createReport().catch(e => showToast(e.message)));
+    document.querySelector("#refreshAll").addEventListener("click", event => refreshAll(event.currentTarget));
+    document.querySelector("#loadTrends").addEventListener("click", event => {
+      runTask({
+        button: event.currentTarget,
+        title: "刷新趋势分析",
+        steps: ["请求趋势接口", "计算热度分布", "更新榜单视图"],
+        successMessage: "趋势分析已刷新"
+      }, async () => {
+        await loadTrends();
+        updateLastSync();
+      }).catch(e => showToast(e.message));
+    });
+    document.querySelector("#searchItems").addEventListener("click", event => {
+      runTask({
+        button: event.currentTarget,
+        title: "检索信息明细",
+        steps: ["提交筛选条件", "读取清洗数据", "渲染搜索结果"],
+        successMessage: "搜索结果已更新"
+      }, async () => {
+        await loadItems();
+        updateLastSync();
+      }).catch(e => showToast(e.message));
+    });
+    document.querySelector("#loadSources").addEventListener("click", event => {
+      runTask({
+        button: event.currentTarget,
+        title: "刷新数据源",
+        steps: ["读取配置表", "整理状态标签", "刷新管理列表"],
+        successMessage: "数据源列表已刷新"
+      }, async () => {
+        await loadSources();
+        updateLastSync();
+      }).catch(e => showToast(e.message));
+    });
+    document.querySelector("#loadReports").addEventListener("click", event => {
+      runTask({
+        button: event.currentTarget,
+        title: "刷新报表记录",
+        steps: ["读取报表历史", "检查下载地址", "刷新记录列表"],
+        successMessage: "报表记录已刷新"
+      }, async () => {
+        await loadReports();
+        updateLastSync();
+      }).catch(e => showToast(e.message));
+    });
+    document.querySelector("#createSource").addEventListener("click", event => createSource(event.currentTarget).catch(e => showToast(e.message)));
+    document.querySelector("#createReport").addEventListener("click", event => createReport(event.currentTarget).catch(e => showToast(e.message)));
     document.querySelector("#startAnalyze").addEventListener("click", startAnalyze);
     document.querySelector("#analyzeTopic").addEventListener("keydown", e => {
       if (e.key === "Enter") startAnalyze();
     });
     document.querySelector("#keyword").addEventListener("keydown", e => {
-      if (e.key === "Enter") loadItems().then(updateLastSync).catch(err => showToast(err.message));
+      if (e.key === "Enter") {
+        runTask({
+          title: "检索信息明细",
+          steps: ["提交筛选条件", "读取清洗数据", "渲染搜索结果"],
+          successMessage: "搜索结果已更新"
+        }, async () => {
+          await loadItems();
+          updateLastSync();
+        }).catch(err => showToast(err.message));
+      }
     });
     document.querySelector("#copyAnalysis").addEventListener("click", async () => {
       const text = document.querySelector("#analyzeContent").textContent;
@@ -641,4 +868,3 @@
 
     activateView(new URLSearchParams(window.location.search).get("view") || "dashboard", false);
     refreshAll();
-
