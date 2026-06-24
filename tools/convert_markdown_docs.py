@@ -121,7 +121,7 @@ def add_cover(doc: Document, source: Path, title: str) -> None:
     rows = [
         ("执行标准", "参考 GB8567——88 / GB856T——88 文档格式"),
         ("文档来源", source.relative_to(ROOT).as_posix()),
-        ("格式处理", "由组长统一整理为 Word 版本，原作者与修订情况以正文记录为准"),
+        ("格式处理", "由罗元恒统一整理为 Word 版本，原作者与修订情况以正文记录为准"),
         ("整理日期", "2026-06-24"),
         ("密级", "内部"),
     ]

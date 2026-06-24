@@ -102,7 +102,7 @@ class ApiHandler(BaseHTTPRequestHandler):
             return repo.create_report(
                 report_type=str(payload.get("report_type", "summary")),
                 file_format=str(payload.get("format", "xlsx")),
-                generated_by=str(payload.get("generated_by", "组长")),
+                generated_by=str(payload.get("generated_by", "罗元恒")),
             )
         raise ValueError(f"route {method} {path} not found")
 

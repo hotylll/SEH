@@ -485,7 +485,7 @@ class Repository:
         self,
         report_type: str = "summary",
         file_format: str = "xlsx",
-        generated_by: str = "组长",
+        generated_by: str = "罗元恒",
     ) -> dict[str, Any]:
         report_type = report_type.lower().strip()
         file_format = file_format.lower().strip()

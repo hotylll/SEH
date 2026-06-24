@@ -157,7 +157,7 @@ class ApiIntegrationTest(unittest.TestCase):
                 status, created = self.request(
                     "POST",
                     "/api/v1/reports",
-                    {"report_type": "detail", "format": file_format, "generated_by": "组长"},
+                    {"report_type": "detail", "format": file_format, "generated_by": "罗元恒"},
                 )
                 self.assertEqual(status, 200)
                 self.assertEqual(created["data"]["file_format"], file_format)

@@ -290,7 +290,7 @@
           <h2 style="margin-right:auto">报表中心</h2>
           <select id="reportType"><option>summary</option><option>detail</option></select>
           <select id="reportFormat"><option>xlsx</option><option>pdf</option></select>
-          <input id="generatedBy" value="组长" placeholder="生成人">
+          <input id="generatedBy" value="罗元恒" placeholder="生成人">
           <button class="primary" id="createReport">生成报表</button>
           <button id="loadReports">刷新记录</button>
         </div>
@@ -579,7 +579,7 @@
         body: JSON.stringify({
           report_type: document.querySelector("#reportType").value,
           format: document.querySelector("#reportFormat").value,
-          generated_by: document.querySelector("#generatedBy").value || "组长"
+          generated_by: document.querySelector("#generatedBy").value || "罗元恒"
         })
       });
       const result = document.querySelector("#reportResult");
