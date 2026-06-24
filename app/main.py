@@ -15,7 +15,7 @@ def create_server(host: str = "127.0.0.1", port: int = 8000, db_path: str = "dat
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="信息收集整合系统后端服务")
+    parser = argparse.ArgumentParser(description="集思 · 信息收集整合系统后端服务")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", default=8000, type=int)
     parser.add_argument("--db", default="data/app.db")
@@ -34,4 +34,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

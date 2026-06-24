@@ -11,13 +11,16 @@ from docx.shared import Pt
 
 
 ROOT = Path(__file__).resolve().parents[1]
+PROJECT_NAME = "集思 · 信息收集整合系统"
+PROJECT_ENGLISH_NAME = "Jisi InfoHub"
 EXCLUDED_PARTS = {
     ".git",
     ".venv",
     "venv",
     "__pycache__",
     "GB856T——88",
-    "信息收集整合系统-最终交付包",
+    "集思 · 信息收集整合系统-最终交付包",
+    "集思 · 信息收集整合系统-最终交付包",
 }
 
 
@@ -106,32 +109,23 @@ def setup_document(doc: Document) -> None:
 
 
 def add_cover(doc: Document, source: Path, title: str) -> None:
+    for _ in range(4):
+        doc.add_paragraph()
+
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = p.add_run("信息收集整合系统")
+    run = p.add_run(PROJECT_NAME)
     set_run_font(run, size=20, bold=True, font="黑体")
+
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = p.add_run(PROJECT_ENGLISH_NAME)
+    set_run_font(run, size=13, bold=False, font="Times New Roman")
 
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = p.add_run(title)
     set_run_font(run, size=18, bold=True, font="黑体")
-
-    table = doc.add_table(rows=5, cols=2)
-    table.style = "Table Grid"
-    rows = [
-        ("执行标准", "参考 GB8567——88 / GB856T——88 文档格式"),
-        ("文档来源", source.relative_to(ROOT).as_posix()),
-        ("格式处理", "由罗元恒统一整理为 Word 版本，原作者与修订情况以正文记录为准"),
-        ("整理日期", "2026-06-24"),
-        ("密级", "内部"),
-    ]
-    for index, (key, value) in enumerate(rows):
-        table.cell(index, 0).text = key
-        table.cell(index, 1).text = value
-        add_shading(table.cell(index, 0), "EAF2F8")
-        for cell in table.rows[index].cells:
-            for paragraph in cell.paragraphs:
-                set_paragraph_font(paragraph, size=10, bold=cell is table.cell(index, 0))
     doc.add_page_break()
 
 

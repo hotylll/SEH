@@ -16,7 +16,8 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "项目文档"
 ASSET_DIR = OUT_DIR / "assets"
-PROJECT_NAME = "信息收集整合系统"
+PROJECT_NAME = "集思 · 信息收集整合系统"
+PROJECT_ENGLISH_NAME = "Jisi InfoHub"
 AUTHOR = "罗元恒"
 DATE = "2026-06-13"
 REVISION_DATE = "2026-06-24"
@@ -359,42 +360,22 @@ def setup_styles(doc: Document) -> None:
 
 
 def add_cover(doc: Document, spec: DocSpec) -> None:
-    for _ in range(3):
+    for _ in range(5):
         doc.add_paragraph()
     title = doc.add_paragraph()
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = title.add_run(PROJECT_NAME)
     set_run_font(run, 22, True)
 
+    english = doc.add_paragraph()
+    english.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = english.add_run(PROJECT_ENGLISH_NAME)
+    set_run_font(run, 14, False)
+
     subtitle = doc.add_paragraph()
     subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = subtitle.add_run(spec.title)
     set_run_font(run, 20, True)
-
-    meta = [
-        ("文档编号", spec.doc_no),
-        ("执行标准", spec.standard),
-        ("版本", "V1.0"),
-        ("密级", "内部"),
-        ("学校", "【待填写】"),
-        ("课程", "【待填写】"),
-        ("班级", "【待填写】"),
-        ("学号", "【待填写】"),
-        ("指导老师", "【待填写】"),
-        ("编写人", AUTHOR),
-        ("编写日期", DATE),
-    ]
-    doc.add_paragraph()
-    table = doc.add_table(rows=len(meta), cols=2)
-    table.style = "Table Grid"
-    for i, (key, value) in enumerate(meta):
-        table.rows[i].cells[0].text = key
-        table.rows[i].cells[1].text = value
-    for row in table.rows:
-        for cell in row.cells:
-            for paragraph in cell.paragraphs:
-                for run in paragraph.runs:
-                    set_run_font(run, 10)
     doc.add_section(WD_SECTION.NEW_PAGE)
 
 
@@ -462,15 +443,15 @@ def project_plan_spec() -> DocSpec:
         "项目开发计划.docx",
         "项目开发计划",
         "GB856T——88",
-        "PLAN-001",
-        "本文档规定信息收集整合系统的开发目标、组织分工、进度安排、资源计划、质量要求和交付控制方法，是项目执行和阶段检查的依据。",
+        "",
+        "本文档规定集思 · 信息收集整合系统的开发目标、组织分工、进度安排、资源计划、质量要求和交付控制方法，是项目执行和阶段检查的依据。",
         3200,
         [
             Section("引言", recurring_paragraphs("项目开发计划", 2)),
             Section(
                 "项目概述",
                 [
-                    "我们要做的就是信息收集整合系统，把网上分散的信息抓下来，洗干净，分析出热点和趋势，最后用图表展示出来。参考了 BettaFish 和 TrendRadar 的思路，但按课程作业的规模来，不贪大。",
+                    "我们要做的就是集思 · 信息收集整合系统，把网上分散的信息抓下来，洗干净，分析出热点和趋势，最后用图表展示出来。参考了 BettaFish 和 TrendRadar 的思路，但按课程作业的规模来，不贪大。",
                     "核心就一条线：从采集到清洗，从清洗到分析，从分析到展示，整条链路能跑通就行。重点放在需求分析、概要设计、数据库设计、测试计划和项目管理这些软件工程环节上。",
                 ],
             ),
@@ -514,8 +495,8 @@ def requirements_spec() -> DocSpec:
         "软件需求说明书.docx",
         "软件需求说明书",
         "GB856T——88",
-        "SRS-001",
-        "本文档定义信息收集整合系统的软件需求，包括业务目标、用户角色、功能需求、非功能需求、接口需求、数据需求和验收准则。",
+        "",
+        "本文档定义集思 · 信息收集整合系统的软件需求，包括业务目标、用户角色、功能需求、非功能需求、接口需求、数据需求和验收准则。",
         5200,
         [
             Section("引言", recurring_paragraphs("软件需求说明书", 2)),
@@ -556,8 +537,8 @@ def outline_design_spec() -> DocSpec:
         "概要设计说明书.docx",
         "概要设计说明书",
         "GB8567——88",
-        "HLD-001",
-        "本文档说明信息收集整合系统的总体架构、模块结构、接口关系、数据流、关键处理流程和技术选型依据。",
+        "",
+        "本文档说明集思 · 信息收集整合系统的总体架构、模块结构、接口关系、数据流、关键处理流程和技术选型依据。",
         4200,
         [
             Section("引言", recurring_paragraphs("概要设计", 2)),
@@ -617,8 +598,8 @@ def database_spec() -> DocSpec:
         "数据库设计说明书.docx",
         "数据库设计说明书",
         "GB8567——88",
-        "DBD-001",
-        "本文档定义信息收集整合系统的数据模型、主要实体、表结构、字段约束、索引策略、数据流转和备份恢复要求。",
+        "",
+        "本文档定义集思 · 信息收集整合系统的数据模型、主要实体、表结构、字段约束、索引策略、数据流转和备份恢复要求。",
         3300,
         [
             Section("引言", recurring_paragraphs("数据库设计", 2)),
@@ -672,8 +653,8 @@ def summary_spec() -> DocSpec:
         "项目开发总结报告.docx",
         "项目开发总结报告",
         "GB8567——88",
-        "SUM-001",
-        "本文档用于项目结题阶段，总结信息收集整合系统的开发过程、成员贡献、完成情况、质量评价、问题经验和后续改进方向。",
+        "",
+        "本文档用于项目结题阶段，总结集思 · 信息收集整合系统的开发过程、成员贡献、完成情况、质量评价、问题经验和后续改进方向。",
         3200,
         [
             Section("项目概况", recurring_paragraphs("项目开发总结", 3)),
@@ -699,9 +680,9 @@ def tech_selection_spec() -> DocSpec:
     return DocSpec(
         "技术选型论证报告.docx",
         "技术选型论证报告",
-        "项目管理补充文档",
-        "TECH-001",
-        "本文档对信息收集整合系统的后端、数据库、前端、部署和质量工具进行比较论证，作为概要设计和开发实施的技术依据。",
+        "",
+        "",
+        "本文档对集思 · 信息收集整合系统的后端、数据库、前端、部署和质量工具进行比较论证，作为概要设计和开发实施的技术依据。",
         2600,
         [
             Section("选型目标", recurring_paragraphs("技术选型", 3)),
@@ -719,8 +700,8 @@ def deploy_spec() -> DocSpec:
     return DocSpec(
         "系统部署与CI-CD方案.docx",
         "系统部署与CI-CD方案",
-        "项目管理补充文档",
-        "DEPLOY-001",
+        "",
+        "",
         "本文档说明系统部署环境、容器编排、自动构建、测试检查、发布流程和回滚策略，为后续代码实现和演示部署提供依据。",
         2600,
         [
@@ -742,8 +723,8 @@ def trace_spec() -> DocSpec:
     return DocSpec(
         "需求追溯矩阵.docx",
         "需求追溯矩阵",
-        "项目管理补充文档",
-        "TRACE-001",
+        "",
+        "",
         "本文档建立需求、设计、数据库、接口和测试之间的追溯关系，用于证明项目过程完整、范围可控、测试覆盖明确。",
         1800,
         [
@@ -759,9 +740,9 @@ def template_spec() -> DocSpec:
     return DocSpec(
         "文档模板说明.docx",
         "文档模板说明",
-        "项目管理补充文档",
-        "TPL-001",
-        "本文档规定小组所有GB标准文档的封面、标题、编号、图表、版本记录和交付命名规则，用于统一成员交付物格式。",
+        "",
+        "",
+            "本文档规定小组所有GB标准文档的封面、标题、图表、版本记录和交付命名规则，用于统一成员交付物格式。",
         1800,
         [
             Section("模板目标", recurring_paragraphs("文档模板", 2)),
@@ -775,7 +756,7 @@ def template_spec() -> DocSpec:
 
 def meeting_spec() -> DocSpec:
     rows = [
-        ["第1次", "2026-06-13", "项目启动与参考项目分析", "确定信息收集整合系统选题，分析BettaFish与TrendRadar源码架构，明确参考思路"],
+        ["第1次", "2026-06-13", "项目启动与参考项目分析", "确定集思 · 信息收集整合系统选题，分析BettaFish与TrendRadar源码架构，明确参考思路"],
         ["第2次", "2026-06-17", "分工与流程计划确定", "确认6人分工方案，制定GB856T——88标准文档清单和6阶段开发流程"],
         ["第3次", "2026-06-22", "罗元恒文档初稿完成", "完成主体文档初稿编写，自查发现部分章节存在套话、需求覆盖不足、图1缺少正式图表等问题，制定修订方案"],
         ["第4次", "2026-06-23", "文档修订与成员材料汇总", "完成需求扩展、API补充、数据库字段说明、架构图嵌入和成员交付物汇总"],
@@ -784,8 +765,8 @@ def meeting_spec() -> DocSpec:
     return DocSpec(
         "会议纪要与评审记录.docx",
         "会议纪要与评审记录",
-        "项目管理补充文档",
-        "MEET-001",
+        "",
+        "",
         "本文档记录项目例会、阶段评审、问题跟踪和决议，用于支撑罗元恒的进度管理与质量把控工作。",
         1800,
         [
@@ -810,8 +791,8 @@ def demo_check_spec() -> DocSpec:
     return DocSpec(
         "答辩演示检查说明.docx",
         "答辩演示检查说明",
-        "项目管理补充文档",
-        "DEMO-001",
+        "",
+        "",
         "本文档规划结题答辩时的现场演示检查项、讲述顺序和分工，用于保证演示过程稳定可复现。",
         1500,
         [
@@ -828,7 +809,7 @@ def diagram_spec() -> DocSpec:
         "图1-系统架构与数据流.docx",
         "图1 系统架构与数据流",
         "项目核心图表",
-        "FIG-001",
+        "",
         "本文档以文字版和表格版方式描述系统架构图、数据流图、模块关系图和用例关系图，便于后续转为正式绘图。",
         1500,
         [
@@ -1038,8 +1019,8 @@ def add_review_appendix(doc: Document, spec: DocSpec) -> None:
         "附录：交付检查清单",
         [
             "本附录用于提交前自查，确认文档内容不是孤立材料，而是能够与需求、设计、测试和答辩展示相互印证。",
-            "检查重点包括文档编号是否一致、图表编号是否规范、责任人是否明确、结论是否可执行、是否存在明显占位内容未替换。",
-            "罗元恒提交前应按文件清单逐项打开检查，确认封面字段、中文显示、表格边框、图片清晰度和页眉页脚正常。对于仍需后续填写的信息，应集中保留在封面占位符中，不应散落在正文关键结论里。",
+            "检查重点包括文档标题是否一致、图表编号是否规范、责任人是否明确、结论是否可执行、是否存在明显占位内容未替换。",
+            "罗元恒提交前应按文件清单逐项打开检查，确认封面标题、中文显示、表格边框、图片清晰度和页眉页脚正常。对于仍需后续确认的信息，应集中记录在提交说明中，不应散落在正文关键结论里。",
             "所有补充材料必须能说明其用途：追溯矩阵用于验收覆盖，会议纪要用于过程管理，演示检查说明用于答辩组织，图表文档用于概要设计和展示复用。",
         ],
         [

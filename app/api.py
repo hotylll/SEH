@@ -37,6 +37,10 @@ class ApiHandler(BaseHTTPRequestHandler):
     def _handle(self, method: str) -> None:
         parsed = urlparse(self.path)
         query = {key: values[0] for key, values in parse_qs(parsed.query).items()}
+        # 根路径 → 渲染前端 SPA
+        if method == "GET" and parsed.path == "/":
+            self._serve_frontend()
+            return
         try:
             data = self._dispatch(method, parsed.path, query)
             if isinstance(data, FileDownload):
@@ -183,6 +187,16 @@ class ApiHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", download.content_type)
         self.send_header("Content-Length", str(len(raw)))
         self.send_header("Content-Disposition", f'attachment; filename="{download.filename}"')
+        self.end_headers()
+        self.wfile.write(raw)
+
+    def _serve_frontend(self) -> None:
+        frontend = Path(__file__).resolve().parent.parent / "frontend" / "index.html"
+        raw = frontend.read_bytes()
+        self.send_response(200)
+        self._send_cors_headers()
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
         self.wfile.write(raw)
 
