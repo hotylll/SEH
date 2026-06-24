@@ -40,6 +40,7 @@ except ImportError:  # pragma: no cover - exercised in environments without repo
     TableStyle = None
 
 from app.analysis import calculate_trends, clean_raw_item, content_hash, validate_clean_result
+from app.crawler import collect_from_searxng, is_searxng_endpoint
 from app.schemas import DataSource, RawItem, ValidationError, utc_now
 
 
@@ -346,7 +347,13 @@ class Repository:
         source = self.get_source(source_id)
         if source.get("status") == "disabled":
             raise ValidationError(f"source {source_id} is disabled")
-        mock_items = self._generate_mock_items(source)
+        # 优先使用 SearXNG 真实爬取，失败时回退到模拟数据
+        if is_searxng_endpoint(source.get("endpoint", "")):
+            items = collect_from_searxng(source, max_items=8)
+        else:
+            items = []
+        if not items:
+            items = self._generate_mock_items(source)
         now = utc_now()
         with self.session() as conn:
             cursor = conn.execute(
@@ -356,7 +363,7 @@ class Repository:
             task_id = int(cursor.lastrowid)
             success_count = 0
             duplicate_count = 0
-            for title, content, url, published_at in mock_items:
+            for title, content, url, published_at in items:
                 raw = RawItem(
                     source_id=source_id,
                     task_id=task_id,
@@ -373,16 +380,16 @@ class Repository:
             task_status = "success"
             failed_count = 0
             error_message = None
-            if not mock_items:
+            if not items:
                 task_status = "failed"
                 failed_count = 1
-                error_message = "no mock items generated"
-            elif success_count == 0 and duplicate_count < len(mock_items):
+                error_message = "未生成任何采集项"
+            elif success_count == 0 and duplicate_count < len(items):
                 task_status = "failed"
-                failed_count = len(mock_items) - duplicate_count
-                error_message = "no valid items collected"
-            elif success_count == 0 and duplicate_count == len(mock_items):
-                error_message = "duplicate items skipped"
+                failed_count = len(items) - duplicate_count
+                error_message = "没有有效的采集项"
+            elif success_count == 0 and duplicate_count == len(items):
+                error_message = "所有项均为重复，已跳过"
             conn.execute(
                 """
                 UPDATE collect_tasks
@@ -969,15 +976,42 @@ class Repository:
         self.initialize()
         if self.list_sources():
             return
-        source = self.create_source(
+        sources = [
             DataSource(
-                name="演示数据源",
+                name="科技新闻",
                 source_type="news",
-                endpoint="https://example.com/demo",
-                keywords="人工智能,新能源汽车,软件工程",
-            )
-        )
-        self.start_collect_task(int(source["id"]))
+                endpoint="https://your-searxng-instance.com",
+                keywords="人工智能,大模型,AI应用",
+                schedule="daily",
+            ),
+            DataSource(
+                name="产业动态",
+                source_type="news",
+                endpoint="https://your-searxng-instance.com",
+                keywords="新能源汽车,半导体,光伏",
+                schedule="daily",
+            ),
+            DataSource(
+                name="开源社区",
+                source_type="forum",
+                endpoint="https://your-searxng-instance.com",
+                keywords="Python,开源项目,开发者",
+                schedule="weekly",
+            ),
+            DataSource(
+                name="财经资讯",
+                source_type="api",
+                endpoint="https://your-searxng-instance.com",
+                keywords="宏观经济,数字经济,创投",
+                schedule="daily",
+            ),
+        ]
+        for source in sources:
+            created = self.create_source(source)
+            try:
+                self.start_collect_task(int(created["id"]))
+            except Exception as exc:
+                print(f"[seed] 采集失败 ({source.name}): {exc}")
 
     def rebuild_trends(self, conn: sqlite3.Connection) -> None:
         rows = conn.execute(
