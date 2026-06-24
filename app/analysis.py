@@ -9,7 +9,60 @@ from typing import Iterable
 from app.schemas import RawItem
 
 
-STOP_WORDS = {"的", "和", "与", "及", "在", "对", "为", "了", "信息", "系统"}
+STOP_WORDS = {
+    # ── 中文停用词 ──
+    "的", "和", "与", "及", "在", "对", "为", "了", "信息", "系统",
+    "我", "你", "他", "她", "它", "我们", "你们", "他们", "她们",
+    "它们", "这", "那", "这些", "那些", "这个", "那个", "什么", "怎么",
+    "如何", "为什么", "哪个", "谁", "哪", "哪儿", "哪里", "那里", "这里",
+    "不", "也", "就", "都", "而", "但", "是", "有", "被", "把",
+    "从", "到", "让", "上", "下", "中", "很", "会", "可以", "能",
+    "要", "将", "会", "已", "已经", "还", "还是", "没有", "没", "如果",
+    "因为", "所以", "但是", "而且", "虽然", "然而", "或者", "还是", "然后",
+    "之", "所", "被", "把", "让", "给", "向", "往", "比", "同",
+    "跟", "但", "可", "却", "则", "或", "若", "关于", "对于", "根据",
+    "按照", "通过", "利用", "作为", "包括", "关于", "基于",
+    # ── 英文停用词 ──
+    "the", "and", "to", "of", "a", "an", "in", "is", "it", "for",
+    "on", "that", "this", "with", "be", "are", "was", "were", "been",
+    "have", "has", "had", "do", "does", "did", "but", "not", "or",
+    "so", "if", "no", "just", "about", "up", "out", "as", "at", "by",
+    "from", "into", "through", "we", "you", "they", "he", "she", "me",
+    "my", "your", "his", "her", "its", "our", "their", "him", "us",
+    "them", "i", "etc", "also", "will", "can", "would", "could",
+    "should", "may", "might", "shall", "must", "need", "all", "each",
+    "every", "both", "few", "more", "most", "other", "some", "such",
+    "only", "own", "same", "than", "too", "very", "just", "because",
+    "when", "where", "how", "what", "which", "who", "whom", "why",
+    "while", "during", "before", "after", "above", "below", "between",
+    "under", "over", "here", "there", "then", "now", "any", "anything",
+    "everything", "nothing", "something", "always", "never", "often",
+    "usually", "sometimes", "already", "yet", "still", "even", "well",
+    "back", "been", "being", "having", "doing", "getting", "make",
+    "made", "going", "go", "goes", "went", "come", "came", "take",
+    "took", "use", "used", "using", "get", "got", "see", "seen",
+    "know", "knew", "think", "thought", "want", "wanted", "give",
+    "gave", "find", "found", "tell", "told", "become", "became",
+    "leave", "left", "feel", "felt", "put", "set", "let", "say",
+    "said", "try", "tried", "ask", "asked", "need", "needed",
+    "seem", "seemed", "help", "helped", "show", "showed", "shown",
+    "hear", "heard", "start", "started", "end", "ended", "way",
+    "ways", "part", "parts", "thing", "things", "time", "times",
+    "year", "years", "day", "days", "week", "weeks", "month", "months",
+    "new", "first", "last", "next", "top", "bottom", "best", "worst",
+    "better", "worse", "like", "look", "looks", "looking", "make",
+    "makes", "making", "used", "using", "called",
+    # ── 常见无意义英文词 ──
+    "welcome", "home", "page", "pages", "site", "sites", "web",
+    "website", "content", "menu", "link", "links", "login", "logout",
+    "sign", "register", "search", "read", "more", "click", "here",
+    "please", "thanks", "thank", "contact", "about", "privacy",
+    "terms", "policy", "copyright", "rights", "reserved", "powered",
+    "designed", "developed", "copyright", "blog", "article",
+    "org", "com", "net", "io", "www", "http", "https", "html",
+    "index", "default", "main", "body", "header", "footer",
+}
+_STOP_WORDS_LOWER: frozenset[str] = frozenset({w.lower() for w in STOP_WORDS})
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 REQUIRED_CLEAN_KEYS = ("normalized_title", "normalized_content", "keywords", "quality_score")
 
@@ -31,8 +84,8 @@ def normalize_text(value: str) -> str:
 def tokenize(text: str) -> list[str]:
     tokens: list[str] = []
     for raw in text.replace("，", " ").replace("。", " ").replace(",", " ").replace(".", " ").split():
-        token = raw.strip("：:；;（）()[]【】")
-        if len(token) >= 2 and token not in STOP_WORDS:
+        token = raw.strip("：:；;（）()[]【】\"'`")
+        if len(token) >= 2 and token.lower() not in _STOP_WORDS_LOWER:
             tokens.append(token)
     return tokens
 
@@ -45,10 +98,10 @@ def keyword_density(title: str, content: str, keywords: list[str]) -> float:
     tokens = tokenize(normalize_text(f"{title} {content}"))
     if not tokens:
         return 0.0
-    unique_tokens = set(tokens)
+    unique_tokens = {t.lower() for t in tokens}
     if not unique_tokens:
         return 0.0
-    matched = sum(1 for keyword in keywords if keyword in unique_tokens)
+    matched = sum(1 for keyword in keywords if keyword.lower() in unique_tokens)
     return round(matched / len(unique_tokens), 4)
 
 
