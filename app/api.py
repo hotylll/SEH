@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
+from app.crawler import ExaMCPClient, search_searxng
+from app.llm import analyze_topic
 from app.schemas import DataSource, ValidationError, response
 from app.storage import Repository
 
@@ -108,6 +110,8 @@ class ApiHandler(BaseHTTPRequestHandler):
                 file_format=str(payload.get("format", "xlsx")),
                 generated_by=str(payload.get("generated_by", "罗元恒")),
             )
+        if method == "POST" and path == "/api/v1/analyze":
+            return self._handle_analyze()
         raise ValueError(f"route {method} {path} not found")
 
     def _read_json(self) -> dict[str, Any]:
@@ -204,3 +208,44 @@ class ApiHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
+
+    def _handle_analyze(self) -> dict[str, Any]:
+        payload = self._read_json()
+        topic = str(payload.get("topic", "")).strip()
+        if not topic:
+            raise ValidationError("topic 不能为空")
+
+        import os
+
+        # 1) 多引擎并行搜索
+        seen_urls: set[str] = set()
+        all_results: list[dict[str, str]] = []
+
+        # SearXNG 搜索
+        searxng_url = os.environ.get("SEARXNG_URL", "https://your-searxng-instance.com")
+        searxng_results = search_searxng([topic], searxng_url, max_results=6)
+        for r in searxng_results:
+            if r["url"] not in seen_urls:
+                seen_urls.add(r["url"])
+                all_results.append(r)
+
+        # Exa 搜索
+        try:
+            exa = ExaMCPClient()
+            exa_results = exa.search(topic, num_results=4)
+            for r in exa_results:
+                if r["url"] not in seen_urls:
+                    seen_urls.add(r["url"])
+                    all_results.append(r)
+        except Exception as exc:
+            print(f"[api] Exa 搜索失败: {exc}")
+
+        # 2) AI 分析
+        analysis = analyze_topic(topic, all_results)
+
+        return {
+            "topic": topic,
+            "analysis": analysis,
+            "sources": [{"title": r["title"], "url": r["url"]} for r in all_results],
+            "source_count": len(all_results),
+        }
