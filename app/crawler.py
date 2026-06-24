@@ -1,12 +1,15 @@
 """真实数据采集模块
 
-通过 SearXNG 搜索引擎检索 + 网页内容抓取，替代 Mock 数据池。
+通过 SearXNG + Exa MCP 双引擎搜索 + 网页内容抓取，替代 Mock 数据池。
 """
 
 from __future__ import annotations
 
+import json
+import os
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -27,6 +30,157 @@ _BLOCKED_DOMAINS = {
 _SESSION: requests.Session | None = None
 
 
+# ═══════════════════════════════════════════
+#  Exa MCP 客户端
+# ═══════════════════════════════════════════
+
+class ExaMCPClient:
+    """通过 MCP 协议调用 Exa 搜索服务的轻量客户端。
+
+    用法:
+        client = ExaMCPClient(api_key="...")
+        results = client.search("人工智能", num_results=5)
+    """
+
+    _MCP_URL = "https://mcp.exa.ai/mcp"
+    _PROTOCOL_VERSION = "2024-11-05"
+
+    def __init__(self, api_key: str | None = None) -> None:
+        self._session_id: str | None = None
+        self._headers: dict[str, str] = {
+            "Accept": "application/json, text/event-stream",
+            "Content-Type": "application/json",
+        }
+        if api_key:
+            self._headers["x-api-key"] = api_key
+
+    # ── 底层 MCP 调用 ──────────────────────
+
+    def _sse_post(self, body: dict[str, object]) -> dict[str, object] | None:
+        """发送 JSON-RPC 请求，从 SSE 流中解析 data 事件。"""
+        headers = dict(self._headers)
+        if self._session_id:
+            headers["Mcp-Session-Id"] = self._session_id
+        try:
+            resp = requests.post(
+                self._MCP_URL,
+                json=body,
+                headers=headers,
+                stream=True,
+                timeout=30,
+            )
+            # 首次请求时保存 Session ID
+            if self._session_id is None:
+                sid = resp.headers.get("Mcp-Session-Id")
+                if sid:
+                    self._session_id = sid
+            # 解析 SSE 行
+            for raw in resp.iter_lines():
+                if not raw:
+                    continue
+                line = raw.decode("utf-8", errors="replace").strip()
+                if line.startswith("data: "):
+                    return json.loads(line[6:])
+            return None  # 没有 data 事件
+        except (requests.RequestException, json.JSONDecodeError) as exc:
+            print(f"[crawler] Exa MCP 请求失败: {exc}")
+            return None
+
+    def initialize(self) -> bool:
+        """初始化 MCP 会话。"""
+        resp = self._sse_post({
+            "jsonrpc": "2.0",
+            "method": "initialize",
+            "params": {
+                "protocolVersion": self._PROTOCOL_VERSION,
+                "capabilities": {},
+                "clientInfo": {"name": "jisi-crawler", "version": "1.0.0"},
+            },
+            "id": 1,
+        })
+        if resp and "result" in resp:
+            return True
+        return False
+
+    def search(
+        self,
+        query: str,
+        num_results: int = 10,
+    ) -> list[dict[str, str]]:
+        """调用 web_search_exa 工具进行搜索。
+
+        返回:
+            [{title, content, url}, ...]
+        """
+        if self._session_id is None:
+            if not self.initialize():
+                return []
+
+        resp = self._sse_post({
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "web_search_exa",
+                "arguments": {
+                    "query": query,
+                    "numResults": num_results,
+                },
+            },
+            "id": 2,
+        })
+        if resp is None or "result" not in resp:
+            return []
+
+        content_list = resp["result"].get("content", [])
+        results: list[dict[str, str]] = []
+        seen_urls: set[str] = set()
+
+        for entry in content_list:
+            text = entry.get("text", "")
+            if not text:
+                continue
+            # 解析 Exa 返回的文本格式
+            title = ""
+            url = ""
+            body = text
+            for line in text.split("\n"):
+                if line.startswith("Title: "):
+                    title = line[7:].strip()
+                elif line.startswith("URL: "):
+                    url = line[5:].strip()
+                elif line.startswith("Highlights:"):
+                    # 摘要在 Highlights: 后面
+                    body = text[text.index("Highlights:") + 11:].strip()
+                    break
+            if not url or not title or url in seen_urls:
+                continue
+            seen_urls.add(url)
+            results.append({
+                "title": title,
+                "content": body if body else title,
+                "url": url,
+            })
+
+        return results
+
+
+# ── 全局 Exa 客户端（惰性初始化） ──
+
+_exa_client: ExaMCPClient | None = None
+
+
+def _get_exa_client() -> ExaMCPClient:
+    global _exa_client
+    if _exa_client is None:
+        api_key = os.environ.get("EXA_API_KEY")
+        _exa_client = ExaMCPClient(api_key=api_key or None)
+    return _exa_client
+
+
+# ═══════════════════════════════════════════
+#  通用工具
+# ═══════════════════════════════════════════
+
 def _get_session() -> requests.Session:
     global _SESSION
     if _SESSION is None:
@@ -36,30 +190,23 @@ def _get_session() -> requests.Session:
 
 
 def _domain_of(url: str) -> str:
-    """从 URL 中提取域名。"""
     try:
-        from urllib.parse import urlparse
         host = urlparse(url).hostname or ""
         return host.removeprefix("www.")
     except Exception:
         return ""
 
 
+# ═══════════════════════════════════════════
+#  SearXNG 引擎
+# ═══════════════════════════════════════════
+
 def search_searxng(
     keywords: list[str],
     base_url: str,
     max_results: int = 10,
 ) -> list[dict[str, str]]:
-    """通过 SearXNG JSON API 搜索关键词。
-
-    参数:
-        keywords: 关键词列表
-        base_url: SearXNG 实例地址（如 https://your-searxng-instance.com）
-        max_results: 最多返回结果数
-
-    返回:
-        [{title, content, url, keyword}, ...]
-    """
+    """通过 SearXNG JSON API 搜索关键词。"""
     results: list[dict[str, str]] = []
     session = _get_session()
     seen_urls: set[str] = set()
@@ -96,16 +243,12 @@ def search_searxng(
     return results
 
 
+# ═══════════════════════════════════════════
+#  网页抓取
+# ═══════════════════════════════════════════
+
 def crawl_page(url: str, max_chars: int = 1500) -> str | None:
-    """抓取单个网页，提取正文纯文本。
-
-    参数:
-        url: 目标网页 URL
-        max_chars: 最多提取字符数
-
-    返回:
-        提取的纯文本，失败返回 None（用原标题+摘要兜底）
-    """
+    """抓取单个网页，提取正文纯文本。"""
     domain = _domain_of(url)
     if domain in _BLOCKED_DOMAINS:
         return None
@@ -125,29 +268,35 @@ def crawl_page(url: str, max_chars: int = 1500) -> str | None:
         return None
 
 
+# ═══════════════════════════════════════════
+#  Endpoint 判断
+# ═══════════════════════════════════════════
+
 def is_searxng_endpoint(endpoint: str) -> bool:
     """判断 endpoint 是否为可用的 SearXNG 实例地址。"""
-    endpoint = endpoint.strip()
-    if not endpoint.startswith("http"):
+    ep = endpoint.strip()
+    if not ep.startswith("http"):
         return False
-    if "example.com" in endpoint:
+    if "example.com" in ep or "mcp.exa" in ep:
         return False
     return True
 
+
+def is_exa_endpoint(endpoint: str) -> bool:
+    """判断 endpoint 是否为 Exa MCP 搜索。"""
+    ep = endpoint.strip().lower()
+    return "exa" in ep or "mcp.exa" in ep
+
+
+# ═══════════════════════════════════════════
+#  高层采集函数
+# ═══════════════════════════════════════════
 
 def collect_from_searxng(
     source: dict[str, Any],
     max_items: int = 8,
 ) -> list[tuple[str, str, str, str]]:
-    """从 SearXNG 采集真实数据。
-
-    参数:
-        source: 数据源字典（需含 keywords, endpoint）
-        max_items: 最多采集数
-
-    返回:
-        [(title, content, url, published_at), ...]
-    """
+    """从 SearXNG 采集真实数据。"""
     keywords_str = source.get("keywords") or ""
     keywords = [k.strip() for k in keywords_str.split(",") if k.strip()]
     if not keywords:
@@ -163,11 +312,47 @@ def collect_from_searxng(
 
     for r in search_results:
         content = r["content"]
-        # 如果摘要很短（<80字符），尝试抓取全文；跳过已知屏蔽的域名
         if len(content) < 80:
             full = crawl_page(r["url"])
             if full:
                 content = full
         items.append((r["title"], content, r["url"], now.isoformat()))
+
+    return items
+
+
+def collect_from_exa(
+    source: dict[str, Any],
+    max_items: int = 8,
+) -> list[tuple[str, str, str, str]]:
+    """从 Exa MCP 采集真实数据。"""
+    keywords_str = source.get("keywords") or ""
+    keywords = [k.strip() for k in keywords_str.split(",") if k.strip()]
+    if not keywords:
+        keywords = ["信息科技"]
+
+    client = _get_exa_client()
+    now = datetime.now(timezone.utc)
+    items: list[tuple[str, str, str, str]] = []
+    seen_urls: set[str] = set()
+
+    for kw in keywords:
+        if len(items) >= max_items:
+            break
+        try:
+            results = client.search(kw, num_results=min(5, max_items - len(items) + 2))
+            for r in results:
+                url = r["url"]
+                if url in seen_urls:
+                    continue
+                seen_urls.add(url)
+                content = r["content"]
+                if len(content) < 80:
+                    full = crawl_page(r["url"])
+                    if full:
+                        content = full
+                items.append((r["title"], content, url, now.isoformat()))
+        except Exception as exc:
+            print(f"[crawler] Exa 搜索失败 '{kw}': {exc}")
 
     return items

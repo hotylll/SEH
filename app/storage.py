@@ -40,7 +40,7 @@ except ImportError:  # pragma: no cover - exercised in environments without repo
     TableStyle = None
 
 from app.analysis import calculate_trends, clean_raw_item, content_hash, validate_clean_result
-from app.crawler import collect_from_searxng, is_searxng_endpoint
+from app.crawler import collect_from_exa, collect_from_searxng, is_exa_endpoint, is_searxng_endpoint
 from app.schemas import DataSource, RawItem, ValidationError, utc_now
 
 
@@ -347,11 +347,13 @@ class Repository:
         source = self.get_source(source_id)
         if source.get("status") == "disabled":
             raise ValidationError(f"source {source_id} is disabled")
-        # 优先使用 SearXNG 真实爬取，失败时回退到模拟数据
-        if is_searxng_endpoint(source.get("endpoint", "")):
+        # 优先级: Exa MCP → SearXNG → Mock 模拟数据
+        items: list[tuple[str, str, str, str]] = []
+        endpoint = source.get("endpoint", "")
+        if is_exa_endpoint(endpoint):
+            items = collect_from_exa(source, max_items=8)
+        if not items and is_searxng_endpoint(endpoint):
             items = collect_from_searxng(source, max_items=8)
-        else:
-            items = []
         if not items:
             items = self._generate_mock_items(source)
         now = utc_now()
@@ -978,17 +980,24 @@ class Repository:
             return
         sources = [
             DataSource(
-                name="科技新闻",
+                name="科技新闻（SearXNG）",
                 source_type="news",
                 endpoint="https://your-searxng-instance.com",
                 keywords="人工智能,大模型,AI应用",
                 schedule="daily",
             ),
             DataSource(
-                name="产业动态",
+                name="产业动态（SearXNG）",
                 source_type="news",
                 endpoint="https://your-searxng-instance.com",
                 keywords="新能源汽车,半导体,光伏",
+                schedule="daily",
+            ),
+            DataSource(
+                name="全球资讯（Exa）",
+                source_type="news",
+                endpoint="https://mcp.exa.ai/mcp",
+                keywords="AI, technology, startup",
                 schedule="daily",
             ),
             DataSource(
