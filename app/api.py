@@ -222,7 +222,9 @@ class ApiHandler(BaseHTTPRequestHandler):
         all_results: list[dict[str, str]] = []
 
         # SearXNG 搜索
-        searxng_url = os.environ.get("SEARXNG_URL", "https://your-searxng-instance.com")
+        searxng_url = os.environ.get("SEARXNG_URL") or ""
+        if not searxng_url:
+            raise ValidationError("未配置 SEARXNG_URL 环境变量")
         searxng_results = search_searxng([topic], searxng_url, max_results=6)
         for r in searxng_results:
             if r["url"] not in seen_urls:
@@ -231,7 +233,7 @@ class ApiHandler(BaseHTTPRequestHandler):
 
         # Exa 搜索
         try:
-            exa = ExaMCPClient()
+            exa = ExaMCPClient(api_key=os.environ.get("EXA_API_KEY") or None)
             exa_results = exa.search(topic, num_results=4)
             for r in exa_results:
                 if r["url"] not in seen_urls:

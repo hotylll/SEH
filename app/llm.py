@@ -11,10 +11,9 @@ from typing import Any
 
 import requests
 
-# ── 默认配置（可通过环境变量覆盖） ──
+# ── 配置（必须通过环境变量设置 AI_API_KEY） ──
 
 DEFAULT_API_BASE = "https://clip.ranai.cc.cd/v1"
-DEFAULT_API_KEY = "sk-xxxxxxxxxxxxxxxxxx"
 DEFAULT_MODEL = "z-ai/glm5.1"
 FALLBACK_MODEL = "deepseek-v4-flash-free"
 
@@ -30,9 +29,15 @@ def _get_session() -> requests.Session:
 
 
 def _config() -> dict[str, str]:
+    api_key = os.environ.get("AI_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "缺少 AI_API_KEY 环境变量。\n"
+            "请设置: $env:AI_API_KEY='your-api-key'"
+        )
     return {
         "api_base": os.environ.get("AI_API_BASE", DEFAULT_API_BASE).rstrip("/"),
-        "api_key": os.environ.get("AI_API_KEY", DEFAULT_API_KEY),
+        "api_key": api_key,
         "model": os.environ.get("AI_MODEL", DEFAULT_MODEL),
     }
 

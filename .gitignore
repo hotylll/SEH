@@ -9,5 +9,8 @@ reports/
 .venv/
 venv/
 get-pip.py
+.env
+.project/
+*.local/
 项目文档/信息收集整合系统-最终交付包/
 项目文档/集思 · 信息收集整合系统-最终交付包/

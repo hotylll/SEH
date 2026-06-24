@@ -6,79 +6,275 @@
   <title>集思 · 信息收集整合系统 | Jisi InfoHub</title>
   <style>
     :root {
-      --bg: #f7f8fb;
+      --bg: #f4f6fa;
       --surface: #ffffff;
-      --line: #d9dee8;
-      --text: #172033;
-      --muted: #697386;
-      --primary: #2563eb;
-      --success: #15803d;
-      --warning: #b45309;
-      --danger: #b91c1c;
-      --neutral: #475569;
+      --surface-soft: #f8fafc;
+      --surface-raised: #ffffff;
+      --line: #dbe2ee;
+      --line-soft: #e9edf5;
+      --text: #141b2d;
+      --muted: #667085;
+      --muted-strong: #475467;
+      --primary: #2459c8;
+      --primary-strong: #1747a6;
+      --primary-soft: #eaf1ff;
+      --success: #168247;
+      --success-soft: #e8f6ee;
+      --warning: #b36a00;
+      --warning-soft: #fff4df;
+      --danger: #b42318;
+      --danger-soft: #ffedeb;
+      --neutral-soft: #eef2f7;
+      --shadow: 0 14px 36px rgba(15, 23, 42, .08);
+      --radius: 8px;
     }
+
     * { box-sizing: border-box; }
+
+    html { background: var(--bg); }
+
     body {
       margin: 0;
-      background: var(--bg);
+      min-width: 320px;
       color: var(--text);
-      font: 14px/1.5 "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+      background: var(--bg);
+      font: 14px/1.5 "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
       letter-spacing: 0;
     }
-    header {
-      height: 56px;
+
+    button, input, select {
+      height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--surface);
+      color: var(--text);
+      padding: 0 11px;
+      font: inherit;
+      letter-spacing: 0;
+      outline: none;
+    }
+
+    input::placeholder { color: #98a2b3; }
+
+    button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+      font-weight: 600;
+      transition: background .16s ease, border-color .16s ease, color .16s ease, transform .08s ease;
+    }
+
+    button:hover { border-color: #bcc8dc; background: #f8fafc; }
+    button:active { transform: translateY(1px); }
+    button:focus-visible, input:focus-visible, select:focus-visible {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(36, 89, 200, .14);
+    }
+    button:disabled { cursor: not-allowed; opacity: .58; transform: none; }
+
+    button.primary {
+      color: #fff;
+      border-color: var(--primary);
+      background: var(--primary);
+    }
+
+    button.primary:hover { border-color: var(--primary-strong); background: var(--primary-strong); }
+
+    button.ghost {
+      height: 34px;
+      color: var(--muted-strong);
+      background: transparent;
+      border-color: transparent;
+      padding: 0 12px;
+    }
+
+    button.ghost:hover { background: #edf2f8; border-color: #edf2f8; color: var(--text); }
+
+    button.ghost.active {
+      color: var(--primary-strong);
+      background: var(--primary-soft);
+      border-color: #c9d9ff;
+    }
+
+    input, select { min-width: 0; }
+
+    .app-header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 24px;
-      background: var(--surface);
+      gap: 18px;
+      min-height: 64px;
+      padding: 10px 24px;
+      background: rgba(255, 255, 255, .94);
       border-bottom: 1px solid var(--line);
-      position: sticky;
-      top: 0;
-      z-index: 10;
+      backdrop-filter: blur(10px);
     }
-    .brand { display: flex; flex-direction: column; line-height: 1.1; }
-    .brand-main { font-size: 18px; font-weight: 700; }
-    .brand-sub { margin-top: 3px; font-size: 11px; color: var(--muted); font-weight: 500; }
-    .api-box { display: flex; align-items: center; gap: 8px; color: var(--muted); }
-    main { max-width: 1280px; margin: 0 auto; padding: 20px 24px 36px; }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 230px;
+    }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border-radius: var(--radius);
+      color: #fff;
+      background: #1d4ed8;
+      font-size: 18px;
+      font-weight: 800;
+    }
+
+    .brand-main {
+      display: block;
+      font-size: 18px;
+      line-height: 1.2;
+      font-weight: 800;
+    }
+
+    .brand-sub {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .api-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      min-width: min(100%, 440px);
+    }
+
+    .api-box label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted-strong);
+    }
+
+    #apiBase { width: min(300px, 42vw); }
+
+    main {
+      width: min(1360px, 100%);
+      margin: 0 auto;
+      padding: 18px 24px 36px;
+    }
+
     nav {
       display: flex;
-      gap: 8px;
-      margin-bottom: 16px;
+      gap: 6px;
+      margin-bottom: 18px;
+      padding: 5px;
       overflow-x: auto;
+      background: #e9eef6;
+      border: 1px solid #d8e0ed;
+      border-radius: 10px;
     }
-    button, input, select {
-      height: 34px;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      background: #fff;
-      color: var(--text);
-      padding: 0 10px;
-      font: inherit;
+
+    .view { display: none; }
+    .view.active { display: block; }
+
+    .page-head {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin: 0 0 14px;
     }
-    button { cursor: pointer; white-space: nowrap; }
-    button.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
-    button.ghost.active { background: #e8efff; border-color: #9bb8ff; color: #1747a6; }
-    button:disabled { cursor: not-allowed; opacity: .55; }
-    input, select { min-width: 0; }
+
+    .page-title {
+      margin: 0;
+      font-size: 23px;
+      line-height: 1.25;
+      font-weight: 800;
+    }
+
+    .page-note {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
     .grid { display: grid; gap: 14px; }
     .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-    .cols { grid-template-columns: minmax(0, 1.4fr) minmax(320px, .9fr); align-items: start; }
-    .panel {
+    .cols { grid-template-columns: minmax(0, 1.45fr) minmax(340px, .9fr); align-items: start; }
+    .analysis-layout { grid-template-columns: minmax(320px, .82fr) minmax(0, 1.5fr); align-items: start; }
+
+    .panel, .metric-card {
       background: var(--surface);
       border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 16px;
+      border-radius: var(--radius);
       min-width: 0;
     }
-    .panel h2 {
-      margin: 0 0 12px;
-      font-size: 17px;
-      line-height: 1.3;
+
+    .panel {
+      padding: 16px;
+      box-shadow: 0 1px 0 rgba(15, 23, 42, .02);
     }
-    .stat-label { color: var(--muted); font-size: 12px; }
-    .stat-value { margin-top: 6px; font-size: 26px; font-weight: 700; }
+
+    .metric-card {
+      position: relative;
+      padding: 15px 16px 14px;
+      overflow: hidden;
+    }
+
+    .metric-card::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto;
+      height: 3px;
+      background: #d8e5ff;
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .metric-value {
+      margin-top: 7px;
+      font-size: 27px;
+      line-height: 1.1;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .metric-help {
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .panel h2 {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.3;
+      font-weight: 800;
+    }
+
+    .panel-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
     .toolbar {
       display: flex;
       flex-wrap: wrap;
@@ -86,21 +282,64 @@
       align-items: center;
       margin-bottom: 12px;
     }
+
+    .toolbar h2 { margin-right: auto; }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .wide-2 { grid-column: span 2; }
+    .wide-3 { grid-column: span 3; }
+
+    .table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
       table-layout: fixed;
+      background: var(--surface);
     }
+
     th, td {
-      padding: 10px 8px;
-      border-bottom: 1px solid #edf0f5;
+      padding: 11px 10px;
+      border-bottom: 1px solid var(--line-soft);
       text-align: left;
       vertical-align: middle;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    th { color: var(--muted); font-size: 12px; font-weight: 600; background: #fafbfe; }
+
+    th {
+      color: var(--muted-strong);
+      background: var(--surface-soft);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    tbody tr:hover { background: #fbfdff; }
+    tbody tr:last-child td { border-bottom: 0; }
+
+    td:nth-child(1), th:nth-child(1),
+    td:nth-child(3), th:nth-child(3),
+    td:nth-child(6), th:nth-child(6) {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .empty-cell {
+      height: 78px;
+      color: var(--muted);
+      text-align: center;
+    }
+
     .badge {
       display: inline-flex;
       align-items: center;
@@ -108,246 +347,535 @@
       min-width: 54px;
       height: 24px;
       border-radius: 999px;
-      padding: 0 8px;
+      padding: 0 9px;
       font-size: 12px;
-      font-weight: 600;
+      line-height: 1;
+      font-weight: 800;
     }
-    .up, .surge { color: var(--success); background: #e9f7ef; }
-    .stable { color: var(--neutral); background: #eef2f7; }
-    .down, .plunge { color: var(--danger); background: #fdecec; }
-    .bar-row { display: grid; grid-template-columns: 92px 1fr 52px; gap: 8px; align-items: center; margin: 10px 0; }
-    .bar-track { height: 12px; background: #edf1f7; border-radius: 999px; overflow: hidden; }
-    .bar-fill { height: 100%; background: var(--primary); border-radius: 999px; min-width: 2px; }
-    .form-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
-    .wide-2 { grid-column: span 2; }
-    .wide-3 { grid-column: span 3; }
-    .view { display: none; }
-    .view.active { display: block; }
-    .muted { color: var(--muted); }
-    .error { color: var(--danger); }
+
+    .badge.up, .badge.surge, .badge.enabled, .badge.score-good {
+      color: var(--success);
+      background: var(--success-soft);
+    }
+
+    .badge.stable, .badge.manual, .badge.score-mid {
+      color: var(--muted-strong);
+      background: var(--neutral-soft);
+    }
+
+    .badge.down, .badge.plunge, .badge.disabled, .badge.score-low {
+      color: var(--danger);
+      background: var(--danger-soft);
+    }
+
+    .badge.info {
+      color: var(--primary-strong);
+      background: var(--primary-soft);
+    }
+
+    .badge.warning {
+      color: var(--warning);
+      background: var(--warning-soft);
+    }
+
     .action-btn {
-      height: 28px;
-      padding: 0 8px;
-      color: var(--primary);
-      border-color: #b8cbff;
-      background: #f5f8ff;
+      height: 30px;
+      padding: 0 9px;
+      color: var(--primary-strong);
+      border-color: #c9d9ff;
+      background: #f6f9ff;
+      font-size: 13px;
     }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: minmax(80px, 108px) 1fr 52px;
+      gap: 10px;
+      align-items: center;
+      margin: 12px 0;
+    }
+
+    .bar-label {
+      overflow: hidden;
+      color: var(--muted-strong);
+      font-weight: 700;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .bar-score {
+      color: var(--muted);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .bar-track {
+      height: 11px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #e9edf5;
+    }
+
+    .bar-fill {
+      height: 100%;
+      min-width: 2px;
+      border-radius: inherit;
+      background: var(--primary);
+    }
+
     .detail-grid {
       display: grid;
-      grid-template-columns: 92px minmax(0, 1fr);
-      gap: 8px 12px;
+      grid-template-columns: 96px minmax(0, 1fr);
+      gap: 9px 14px;
       margin-bottom: 14px;
     }
-    .detail-label { color: var(--muted); }
-    .detail-value { word-break: break-word; }
+
+    .detail-label {
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .detail-value {
+      min-width: 0;
+      word-break: break-word;
+      white-space: pre-wrap;
+    }
+
+    .detail-value a, .source-link {
+      color: var(--primary-strong);
+      text-decoration: none;
+    }
+
+    .detail-value a:hover, .source-link:hover { text-decoration: underline; }
+
+    .analysis-card {
+      min-height: 360px;
+    }
+
+    .source-stack {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .source-item {
+      display: block;
+      padding: 10px 11px;
+      color: var(--text);
+      text-decoration: none;
+      background: var(--surface-soft);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+    }
+
+    .source-item:hover {
+      border-color: #c9d9ff;
+      background: #f6f9ff;
+      text-decoration: none;
+    }
+
+    .source-title {
+      display: block;
+      overflow: hidden;
+      font-weight: 800;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .source-domain {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .analysis-tools {
+      display: grid;
+      gap: 12px;
+    }
+
+    .analysis-input {
+      width: 100%;
+      height: 42px;
+      font-size: 15px;
+    }
+
+    .source-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .markdown-body {
+      color: #1d2939;
+      line-height: 1.78;
+    }
+
+    .markdown-body h2 {
+      margin: 20px 0 8px;
+      padding-bottom: 7px;
+      border-bottom: 1px solid var(--line-soft);
+      font-size: 18px;
+    }
+
+    .markdown-body h3 {
+      margin: 16px 0 7px;
+      font-size: 15px;
+    }
+
+    .markdown-body p { margin: 9px 0; }
+    .markdown-body ul, .markdown-body ol { margin: 9px 0 9px 20px; padding: 0; }
+    .markdown-body li { margin: 5px 0; }
+    .markdown-body code {
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: #eef2f7;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 13px;
+    }
+    .markdown-body pre {
+      overflow-x: auto;
+      padding: 12px;
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+      background: #f3f6fa;
+    }
+
+    .loading-state {
+      display: none;
+      place-items: center;
+      min-height: 220px;
+      padding: 36px 12px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .loading-state.show { display: grid; }
+
+    .spinner {
+      width: 34px;
+      height: 34px;
+      margin: 0 auto 12px;
+      border: 3px solid #dbe5f4;
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin .9s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
     .modal[hidden] { display: none; }
+
     .modal {
       position: fixed;
       inset: 0;
-      z-index: 30;
+      z-index: 40;
       display: grid;
       place-items: center;
       padding: 18px;
     }
+
     .modal-backdrop {
       position: absolute;
       inset: 0;
-      background: rgba(15, 23, 42, .42);
+      background: rgba(15, 23, 42, .44);
     }
+
     .modal-panel {
       position: relative;
-      width: min(920px, 100%);
-      max-height: min(760px, calc(100vh - 36px));
+      width: min(940px, 100%);
+      max-height: min(780px, calc(100vh - 36px));
       overflow: auto;
+      padding: 17px;
       background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      box-shadow: 0 18px 54px rgba(15, 23, 42, .24);
-      padding: 16px;
+      border: 1px solid #cfd8e6;
+      border-radius: 10px;
+      box-shadow: var(--shadow);
     }
+
     .modal-head {
       display: flex;
       align-items: center;
       gap: 12px;
-      margin-bottom: 12px;
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line-soft);
     }
+
     .modal-head h2 {
       margin: 0;
       font-size: 18px;
       line-height: 1.3;
     }
+
     .modal-head button { margin-left: auto; }
-    .badge { display:inline-block;padding:2px 10px;border-radius:12px;background:#eef2ff;color:var(--primary);font-size:13px;font-weight:500; }
-    .markdown-body h2 { border-bottom:1px solid var(--line);padding-bottom:6px; }
-    .markdown-body h3 { color:var(--text); }
-    .markdown-body strong { color:var(--text); }
-    .markdown-body pre { background:#f4f5f7;border:1px solid var(--line); }
+
     .toast {
       position: fixed;
       right: 18px;
       bottom: 18px;
-      max-width: 420px;
-      padding: 12px 14px;
-      border-radius: 8px;
-      background: #172033;
-      color: #fff;
-      box-shadow: 0 8px 24px rgba(15, 23, 42, .18);
+      z-index: 60;
       display: none;
+      max-width: min(420px, calc(100vw - 36px));
+      padding: 12px 14px;
+      color: #fff;
+      background: #172033;
+      border-radius: var(--radius);
+      box-shadow: 0 14px 30px rgba(15, 23, 42, .18);
     }
+
     .toast.show { display: block; }
-    @media (max-width: 900px) {
-      header { padding: 0 14px; }
+
+    .muted { color: var(--muted); }
+    .section-gap { margin-top: 14px; }
+    .right-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+
+    @media (max-width: 980px) {
+      .app-header { align-items: flex-start; flex-direction: column; padding: 12px 14px; }
+      .api-box { width: 100%; }
+      #apiBase { flex: 1; width: auto; }
       main { padding: 14px; }
-      .stats, .cols, .form-grid { grid-template-columns: 1fr; }
+      .stats, .cols, .analysis-layout, .form-grid { grid-template-columns: 1fr; }
       .wide-2, .wide-3 { grid-column: span 1; }
-      table { min-width: 720px; }
-      .table-wrap { overflow-x: auto; }
+      .page-head { align-items: flex-start; flex-direction: column; }
+      .right-actions { justify-content: flex-start; }
+      table { min-width: 760px; }
+    }
+
+    @media (max-width: 560px) {
+      .brand-main { font-size: 16px; }
+      .api-box { flex-wrap: wrap; }
+      .api-box label { width: 100%; }
+      .toolbar > input, .toolbar > select { flex: 1 1 140px; }
+      .detail-grid { grid-template-columns: 1fr; }
+      .page-title { font-size: 20px; }
     }
   </style>
 </head>
 <body>
-  <header>
+  <header class="app-header">
     <div class="brand">
-      <span class="brand-main">集思 · 信息收集整合系统</span>
-      <span class="brand-sub">Jisi InfoHub</span>
+      <div class="brand-mark" aria-hidden="true">集</div>
+      <div>
+        <span class="brand-main">集思 · 信息收集整合系统</span>
+        <span class="brand-sub">Jisi InfoHub</span>
+      </div>
     </div>
     <div class="api-box">
-      <span>API</span>
+      <label for="apiBase">API</label>
       <input id="apiBase" value="http://127.0.0.1:8000" aria-label="API地址">
-      <button id="saveApi">保存</button>
+      <button id="saveApi" type="button">连接</button>
     </div>
   </header>
 
   <main>
-    <nav>
-      <button class="ghost active" data-view="dashboard">首页</button>
-      <button class="ghost" data-view="trends">趋势分析</button>
-      <button class="ghost" data-view="items">信息搜索</button>
-      <button class="ghost" data-view="sources">数据源管理</button>
-      <button class="ghost" data-view="reports">报表中心</button>
-      <button class="ghost" data-view="analyze">智能分析</button>
+    <nav aria-label="主导航">
+      <button class="ghost active" data-view="dashboard" type="button">首页</button>
+      <button class="ghost" data-view="trends" type="button">趋势分析</button>
+      <button class="ghost" data-view="items" type="button">信息搜索</button>
+      <button class="ghost" data-view="sources" type="button">数据源管理</button>
+      <button class="ghost" data-view="reports" type="button">报表中心</button>
+      <button class="ghost" data-view="analyze" type="button">智能分析</button>
     </nav>
 
     <section id="dashboard" class="view active">
-      <div class="grid stats">
-        <div class="panel"><div class="stat-label">服务状态</div><div id="healthStatus" class="stat-value">-</div></div>
-        <div class="panel"><div class="stat-label">热点主题</div><div id="topicCount" class="stat-value">0</div></div>
-        <div class="panel"><div class="stat-label">信息总数</div><div id="itemCount" class="stat-value">0</div></div>
-        <div class="panel"><div class="stat-label">数据源数</div><div id="sourceCount" class="stat-value">0</div></div>
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">运行概览</h1>
+          <p class="page-note">热点、信息量、数据源与报表能力集中展示</p>
+        </div>
+        <div class="right-actions">
+          <span class="badge info" id="lastSync">待刷新</span>
+          <button class="primary" id="refreshAll" type="button">刷新全部</button>
+        </div>
       </div>
-      <div class="grid cols" style="margin-top:14px">
+
+      <div class="grid stats">
+        <div class="metric-card">
+          <div class="metric-label">服务状态</div>
+          <div id="healthStatus" class="metric-value">-</div>
+          <div class="metric-help">后端健康检查</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">热点主题</div>
+          <div id="topicCount" class="metric-value">0</div>
+          <div class="metric-help">趋势榜当前条目</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">信息总数</div>
+          <div id="itemCount" class="metric-value">0</div>
+          <div class="metric-help">当前查询结果规模</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">数据源数</div>
+          <div id="sourceCount" class="metric-value">0</div>
+          <div class="metric-help">已配置采集来源</div>
+        </div>
+      </div>
+
+      <div class="grid cols section-gap">
         <div class="panel">
-          <div class="toolbar">
-            <h2 style="margin-right:auto">今日热点榜</h2>
-            <button class="primary" id="refreshAll">刷新</button>
+          <div class="panel-title-row">
+            <h2>今日热点榜</h2>
+            <span class="badge info">Top 10</span>
           </div>
           <div class="table-wrap"><table id="hotTable"></table></div>
         </div>
         <div class="panel">
-          <h2>热度分布</h2>
+          <div class="panel-title-row">
+            <h2>热度分布</h2>
+          </div>
           <div id="barChart"></div>
         </div>
       </div>
     </section>
 
     <section id="trends" class="view">
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">趋势分析</h1>
+          <p class="page-note">按热度分数查看主题变化，并下钻关联信息</p>
+        </div>
+      </div>
       <div class="panel">
         <div class="toolbar">
-          <h2 style="margin-right:auto">趋势分析</h2>
-          <select id="trendLimit"><option>10</option><option selected>20</option><option>50</option></select>
-          <button id="loadTrends">刷新趋势</button>
+          <h2>主题榜单</h2>
+          <select id="trendLimit" aria-label="趋势显示条数"><option>10</option><option selected>20</option><option>50</option></select>
+          <button id="loadTrends" type="button">刷新趋势</button>
         </div>
         <div class="table-wrap"><table id="trendTable"></table></div>
       </div>
     </section>
 
     <section id="items" class="view">
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">信息搜索</h1>
+          <p class="page-note">检索清洗后的信息明细，支持来源与数量筛选</p>
+        </div>
+      </div>
       <div class="panel">
         <div class="toolbar">
-          <input id="keyword" placeholder="关键词">
-          <input id="sourceId" placeholder="来源ID">
-          <select id="itemLimit"><option>20</option><option selected>50</option><option>100</option></select>
-          <button class="primary" id="searchItems">搜索</button>
+          <input id="keyword" placeholder="关键词" aria-label="关键词">
+          <input id="sourceId" placeholder="来源ID" aria-label="来源ID">
+          <select id="itemLimit" aria-label="信息显示条数"><option>20</option><option selected>50</option><option>100</option></select>
+          <button class="primary" id="searchItems" type="button">搜索</button>
         </div>
         <div class="table-wrap"><table id="itemTable"></table></div>
       </div>
     </section>
 
     <section id="sources" class="view">
-      <div class="panel">
-        <h2>新增数据源</h2>
-        <div class="form-grid">
-          <input id="srcName" class="wide-2" placeholder="名称">
-          <select id="srcType"><option>news</option><option>forum</option><option>api</option><option>csv</option></select>
-          <select id="srcSchedule"><option>manual</option><option>hourly</option><option>daily</option><option>weekly</option></select>
-          <select id="srcStatus"><option>enabled</option><option>disabled</option></select>
-          <input id="srcKeywords" class="wide-2" placeholder="关键词">
-          <input id="srcEndpoint" class="wide-3" placeholder="endpoint">
-          <button class="primary" id="createSource">保存</button>
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">数据源管理</h1>
+          <p class="page-note">配置 SearXNG、Exa 或演示源，执行采集后进入清洗与趋势流程</p>
         </div>
       </div>
-      <div class="panel" style="margin-top:14px">
+      <div class="panel">
+        <div class="panel-title-row">
+          <h2>新增数据源</h2>
+        </div>
+        <div class="form-grid">
+          <input id="srcName" class="wide-2" placeholder="名称" aria-label="数据源名称">
+          <select id="srcType" aria-label="数据源类型"><option>news</option><option>forum</option><option>api</option><option>csv</option></select>
+          <select id="srcSchedule" aria-label="采集周期"><option>manual</option><option>hourly</option><option>daily</option><option>weekly</option></select>
+          <select id="srcStatus" aria-label="状态"><option>enabled</option><option>disabled</option></select>
+          <input id="srcKeywords" class="wide-2" placeholder="关键词" aria-label="关键词">
+          <input id="srcEndpoint" class="wide-3" placeholder="endpoint，例如 https://sh.ranai.de5.net" aria-label="endpoint">
+          <button class="primary" id="createSource" type="button">保存</button>
+        </div>
+      </div>
+      <div class="panel section-gap">
         <div class="toolbar">
-          <h2 style="margin-right:auto">数据源列表</h2>
-          <button id="loadSources">刷新数据源</button>
+          <h2>数据源列表</h2>
+          <button id="loadSources" type="button">刷新数据源</button>
         </div>
         <div class="table-wrap"><table id="sourceTable"></table></div>
       </div>
     </section>
 
     <section id="reports" class="view">
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">报表中心</h1>
+          <p class="page-note">生成 summary/detail 报表，支持 XLSX 与 PDF 下载</p>
+        </div>
+      </div>
       <div class="panel">
         <div class="toolbar">
-          <h2 style="margin-right:auto">报表中心</h2>
-          <select id="reportType"><option>summary</option><option>detail</option></select>
-          <select id="reportFormat"><option>xlsx</option><option>pdf</option></select>
-          <input id="generatedBy" value="罗元恒" placeholder="生成人">
-          <button class="primary" id="createReport">生成报表</button>
-          <button id="loadReports">刷新记录</button>
+          <h2>报表生成</h2>
+          <select id="reportType" aria-label="报表类型"><option>summary</option><option>detail</option></select>
+          <select id="reportFormat" aria-label="报表格式"><option>xlsx</option><option>pdf</option></select>
+          <input id="generatedBy" value="罗元恒" placeholder="生成人" aria-label="生成人">
+          <button class="primary" id="createReport" type="button">生成报表</button>
+          <button id="loadReports" type="button">刷新记录</button>
         </div>
         <div id="reportResult" class="muted"></div>
-        <div class="table-wrap" style="margin-top:12px"><table id="reportTable"></table></div>
+        <div class="table-wrap section-gap"><table id="reportTable"></table></div>
       </div>
     </section>
 
     <section id="analyze" class="view">
-      <div class="panel">
-        <div class="toolbar" style="flex-wrap:wrap;gap:10px">
-          <h2 style="margin-right:auto">🔍 智能分析</h2>
-          <input id="analyzeTopic" placeholder="输入你想要分析的主题…" style="flex:2;min-width:260px;padding:8px 12px;font-size:14px;border:1px solid var(--line);border-radius:6px">
-          <button class="primary" id="startAnalyze" style="padding:8px 20px;font-size:14px">🚀 全网检索+AI分析</button>
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">智能分析</h1>
+          <p class="page-note">真实搜索源检索后调用 AI 生成结构化分析报告</p>
         </div>
-        <div class="muted" style="margin-top:6px;font-size:13px">输入任意主题，系统将自动检索全网信息并生成 AI 分析报告</div>
       </div>
-      <div id="analyzeResult" style="display:none;margin-top:14px">
+      <div class="grid analysis-layout">
         <div class="panel">
-          <div class="toolbar">
-            <h2 style="margin-right:auto" id="analyzeTitle">分析报告</h2>
-            <span id="sourceBadge" class="badge"></span>
-            <button id="copyAnalysis" style="margin-left:8px">📋 复制</button>
+          <div class="analysis-tools">
+            <div>
+              <h2>分析主题</h2>
+              <p class="page-note">可输入产品、行业、事件或课程演示主题</p>
+            </div>
+            <input id="analyzeTopic" class="analysis-input" placeholder="例如：人工智能产业趋势" aria-label="分析主题">
+            <button class="primary" id="startAnalyze" type="button">全网检索 + AI 分析</button>
+            <div class="source-chips" aria-label="分析链路">
+              <span class="badge info">SearXNG</span>
+              <span class="badge info">Exa</span>
+              <span class="badge warning">AI 分析</span>
+              <span class="badge stable">去重来源</span>
+            </div>
           </div>
-          <div id="analyzeContent" class="markdown-body" style="padding:16px 0;line-height:1.8;font-size:15px"></div>
         </div>
-        <div class="panel" style="margin-top:14px">
-          <div class="toolbar">
-            <h2 style="margin-right:auto;font-size:15px">📎 参考来源</h2>
+
+        <div class="panel analysis-card">
+          <div class="panel-title-row">
+            <h2 id="analyzeTitle">分析报告</h2>
+            <div class="right-actions">
+              <span id="sourceBadge" class="badge info">0 个来源</span>
+              <button id="copyAnalysis" type="button">复制</button>
+            </div>
           </div>
-          <div id="sourceList" style="padding:8px 0"></div>
+          <div id="analyzeLoading" class="loading-state">
+            <div>
+              <div class="spinner" aria-hidden="true"></div>
+              <div>正在检索并生成分析</div>
+            </div>
+          </div>
+          <div id="analyzeResult" hidden>
+            <div id="analyzeContent" class="markdown-body"></div>
+            <div class="section-gap">
+              <div class="panel-title-row">
+                <h2>参考来源</h2>
+              </div>
+              <div id="sourceList" class="source-stack"></div>
+            </div>
+          </div>
+          <div id="analyzeEmpty" class="muted">输入主题后生成报告。</div>
         </div>
-      </div>
-      <div id="analyzeLoading" class="panel" style="display:none;margin-top:14px;text-align:center;padding:48px 0">
-        <div style="font-size:40px;margin-bottom:12px">⏳</div>
-        <div style="font-size:16px;color:var(--muted)">正在全网检索信息…</div>
-        <div class="muted" style="margin-top:6px;font-size:13px">系统正在通过多引擎搜索并生成 AI 分析，请稍候</div>
       </div>
     </section>
   </main>
+
   <div id="detailModal" class="modal" hidden>
     <div class="modal-backdrop" data-close-modal></div>
     <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <div class="modal-head">
         <h2 id="modalTitle">详情</h2>
-        <button id="closeModal">关闭</button>
+        <button id="closeModal" type="button">关闭</button>
       </div>
       <div id="modalBody"></div>
     </div>
@@ -360,21 +888,35 @@
     const modal = document.querySelector("#detailModal");
     const modalTitle = document.querySelector("#modalTitle");
     const modalBody = document.querySelector("#modalBody");
+    let toastTimer = 0;
     apiInput.value = localStorage.getItem("apiBase") || apiInput.value;
 
-    function apiBase() { return apiInput.value.replace(/\/$/, ""); }
+    function apiBase() {
+      return apiInput.value.replace(/\/$/, "");
+    }
+
     function showToast(text) {
       const toast = document.querySelector("#toast");
+      window.clearTimeout(toastTimer);
       toast.textContent = text;
       toast.classList.add("show");
-      setTimeout(() => toast.classList.remove("show"), 2600);
+      toastTimer = window.setTimeout(() => toast.classList.remove("show"), 2800);
     }
+
     async function request(path, options = {}) {
       const response = await fetch(apiBase() + path, options);
-      const payload = await response.json();
-      if (!response.ok || payload.code !== 0) throw new Error(payload.message || "请求失败");
+      let payload;
+      try {
+        payload = await response.json();
+      } catch (error) {
+        throw new Error(`响应格式错误：${response.status}`);
+      }
+      if (!response.ok || payload.code !== 0) {
+        throw new Error(payload.message || "请求失败");
+      }
       return payload.data;
     }
+
     function fillCell(cell, value) {
       if (value instanceof Node) {
         cell.appendChild(value);
@@ -384,6 +926,7 @@
       cell.textContent = text;
       cell.title = text;
     }
+
     function buildTable(headers, rows) {
       const table = document.createElement("table");
       const thead = document.createElement("thead");
@@ -401,6 +944,7 @@
         const emptyRow = document.createElement("tr");
         const td = document.createElement("td");
         td.colSpan = headers.length;
+        td.className = "empty-cell";
         td.textContent = "暂无数据";
         emptyRow.appendChild(td);
         tbody.appendChild(emptyRow);
@@ -418,19 +962,36 @@
       table.appendChild(tbody);
       return table;
     }
+
     function setTable(selector, headers, rows) {
       const table = document.querySelector(selector);
       const next = buildTable(headers, rows);
       next.id = selector.slice(1);
       table.replaceWith(next);
     }
+
+    function badge(text, className = "info") {
+      const span = document.createElement("span");
+      span.className = `badge ${className}`;
+      span.textContent = text;
+      return span;
+    }
+
     function trendBadge(direction) {
       const text = { surge: "突增", up: "上升", stable: "稳定", down: "下降", plunge: "骤降" }[direction] || direction;
-      const badge = document.createElement("span");
-      badge.className = `badge ${direction}`;
-      badge.textContent = text;
-      return badge;
+      return badge(text, direction);
     }
+
+    function statusBadge(status) {
+      return badge(status, status === "enabled" ? "enabled" : status === "disabled" ? "disabled" : "stable");
+    }
+
+    function qualityBadge(score) {
+      const value = Number(score);
+      const className = value >= 80 ? "score-good" : value >= 60 ? "score-mid" : "score-low";
+      return badge(Number.isFinite(value) ? value.toFixed(1) : "-", className);
+    }
+
     function actionButton(label, onClick) {
       const button = document.createElement("button");
       button.type = "button";
@@ -439,6 +1000,16 @@
       button.addEventListener("click", onClick);
       return button;
     }
+
+    function linkNode(url, label = url) {
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.target = "_blank";
+      anchor.rel = "noopener";
+      anchor.textContent = label || url;
+      return anchor;
+    }
+
     function detailGrid(fields) {
       const grid = document.createElement("div");
       grid.className = "detail-grid";
@@ -448,24 +1019,42 @@
         labelEl.textContent = label;
         const valueEl = document.createElement("div");
         valueEl.className = "detail-value";
-        valueEl.textContent = String(value ?? "-");
+        if (value instanceof Node) {
+          valueEl.appendChild(value);
+        } else {
+          valueEl.textContent = String(value ?? "-");
+        }
         grid.append(labelEl, valueEl);
       });
       return grid;
     }
+
     function showModal(title, body) {
       modalTitle.textContent = title;
-      modalBody.textContent = "";
-      modalBody.appendChild(body);
+      modalBody.replaceChildren(body);
       modal.hidden = false;
     }
+
     function closeModal() {
       modal.hidden = true;
     }
+
+    function formatTime(value) {
+      if (!value) return "-";
+      return String(value).replace("T", " ").replace("+00:00", "");
+    }
+
+    function updateLastSync() {
+      const node = document.querySelector("#lastSync");
+      const now = new Date();
+      node.textContent = `已刷新 ${now.toLocaleTimeString("zh-CN", { hour12: false })}`;
+    }
+
     async function loadHealth() {
       const data = await request("/api/v1/health");
       document.querySelector("#healthStatus").textContent = data.status;
     }
+
     async function loadTrends() {
       const limit = document.querySelector("#trendLimit").value;
       const data = await request(`/api/v1/trends?limit=${encodeURIComponent(limit)}`);
@@ -476,22 +1065,31 @@
         t.topic,
         Number(t.score).toFixed(2),
         trendBadge(t.direction),
-        `${t.period_start} ~ ${t.period_end}`,
+        `${formatTime(t.period_start)} ~ ${formatTime(t.period_end)}`,
         actionButton("详情", () => showTopicDetail(t.topic))
       ]);
       setTable("#trendTable", ["#", "主题", "分数", "趋势", "周期", "操作"], rows);
       setTable("#hotTable", ["#", "主题", "分数", "趋势", "周期", "操作"], rows.slice(0, 10));
       renderBars();
     }
+
     function renderBars() {
       const max = Math.max(...state.trends.map(t => Number(t.score)), 1);
       const chart = document.querySelector("#barChart");
-      chart.textContent = "";
+      chart.replaceChildren();
+      if (!state.trends.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty-cell";
+        empty.textContent = "暂无趋势数据";
+        chart.appendChild(empty);
+        return;
+      }
       state.trends.slice(0, 8).forEach(t => {
         const width = Math.max(4, Number(t.score) / max * 100);
         const row = document.createElement("div");
         row.className = "bar-row";
         const label = document.createElement("div");
+        label.className = "bar-label";
         label.textContent = t.topic;
         label.title = t.topic;
         const track = document.createElement("div");
@@ -500,12 +1098,14 @@
         fill.className = "bar-fill";
         fill.style.width = `${width}%`;
         const score = document.createElement("div");
+        score.className = "bar-score";
         score.textContent = Number(t.score).toFixed(1);
         track.appendChild(fill);
         row.append(label, track, score);
         chart.appendChild(row);
       });
     }
+
     async function loadItems() {
       const keyword = document.querySelector("#keyword").value.trim();
       const sourceId = document.querySelector("#sourceId").value.trim();
@@ -520,21 +1120,27 @@
         item.id,
         item.title,
         item.source_id,
-        item.published_at,
+        formatTime(item.published_at),
         item.keywords,
-        Number(item.quality_score).toFixed(1),
+        qualityBadge(item.quality_score),
         actionButton("详情", () => showItemDetail(item.id))
       ]));
     }
+
     async function loadSources() {
       const data = await request("/api/v1/sources");
       state.sources = data.items || [];
       document.querySelector("#sourceCount").textContent = state.sources.length;
       setTable("#sourceTable", ["ID", "名称", "类型", "状态", "关键词", "操作"], state.sources.map(source => [
-        source.id, source.name, source.source_type, source.status, source.keywords || "-",
+        source.id,
+        source.name,
+        source.source_type,
+        statusBadge(source.status),
+        source.keywords || "-",
         actionButton("采集", () => collectSource(source.id))
       ]));
     }
+
     async function collectSource(id) {
       const data = await request("/api/v1/tasks/collect", {
         method: "POST",
@@ -543,20 +1149,24 @@
       });
       showToast(`任务 ${data.id}：${data.task_status}，新增 ${data.success_count} 条`);
       await Promise.all([loadItems(), loadTrends()]);
+      updateLastSync();
     }
+
     async function showItemDetail(id) {
       const item = await request(`/api/v1/items/${encodeURIComponent(id)}`);
+      const url = item.url ? linkNode(item.url, item.url) : "-";
       const body = detailGrid([
         ["标题", item.title],
         ["正文", item.normalized_content || item.content],
         ["关键词", item.keywords],
         ["来源ID", item.source_id],
-        ["URL", item.url],
-        ["发布时间", item.published_at],
+        ["URL", url],
+        ["发布时间", formatTime(item.published_at)],
         ["质量分", Number(item.quality_score).toFixed(1)]
       ]);
       showModal(`信息详情 #${item.id}`, body);
     }
+
     async function showTopicDetail(topic) {
       const data = await request(`/api/v1/trends/${encodeURIComponent(topic)}`);
       const wrap = document.createElement("div");
@@ -565,28 +1175,30 @@
         ["主题", data.topic],
         ["分数", trend ? Number(trend.score).toFixed(2) : "-"],
         ["趋势", trend ? trend.direction : "-"],
-        ["周期", trend ? `${trend.period_start} ~ ${trend.period_end}` : "-"]
+        ["周期", trend ? `${formatTime(trend.period_start)} ~ ${formatTime(trend.period_end)}` : "-"]
       ]));
       const title = document.createElement("h2");
       title.textContent = "关联信息";
+      title.style.margin = "8px 0 12px";
       wrap.appendChild(title);
       wrap.appendChild(buildTable(
         ["ID", "标题", "发布时间", "关键词", "质量"],
         (data.items || []).map(item => [
           item.id,
           item.title,
-          item.published_at,
+          formatTime(item.published_at),
           item.keywords,
           Number(item.quality_score).toFixed(1)
         ])
       ));
       showModal("主题详情", wrap);
     }
+
     async function createSource() {
       const payload = {
-        name: document.querySelector("#srcName").value || "演示数据源",
+        name: document.querySelector("#srcName").value || "真实搜索源",
         type: document.querySelector("#srcType").value,
-        endpoint: document.querySelector("#srcEndpoint").value || "https://example.com/demo",
+        endpoint: document.querySelector("#srcEndpoint").value || "https://sh.ranai.de5.net",
         keywords: document.querySelector("#srcKeywords").value,
         schedule: document.querySelector("#srcSchedule").value,
         status: document.querySelector("#srcStatus").value
@@ -599,6 +1211,7 @@
       showToast(`数据源已创建：${data.name}`);
       await loadSources();
     }
+
     async function loadReports() {
       const data = await request("/api/v1/reports");
       state.reports = data.items || [];
@@ -608,13 +1221,15 @@
         report.report_type,
         report.file_format,
         report.generated_by,
-        report.generated_at,
+        formatTime(report.generated_at),
         actionButton("下载", () => downloadReport(report))
       ]));
     }
+
     function downloadReport(report) {
       window.open(apiBase() + report.download_url, "_blank", "noopener");
     }
+
     async function createReport() {
       const data = await request("/api/v1/reports", {
         method: "POST",
@@ -626,53 +1241,193 @@
         })
       });
       const result = document.querySelector("#reportResult");
-      result.textContent = `${data.report_name} / ${data.file_path}`;
       const download = actionButton("下载", () => downloadReport(data));
-      download.style.marginLeft = "8px";
-      result.appendChild(download);
+      result.replaceChildren(`${data.report_name} / ${data.file_path} `, download);
       showToast("报表文件已生成");
       await loadReports();
     }
+
     async function refreshAll() {
       try {
         await Promise.all([loadHealth(), loadSources(), loadItems(), loadTrends(), loadReports()]);
+        updateLastSync();
       } catch (error) {
         showToast(error.message);
       }
     }
 
-    // ── 智能分析 ─────────────────────────────────────────
+    function appendInline(parent, text) {
+      const pattern = /(\*\*([^*]+)\*\*|`([^`]+)`)/g;
+      let lastIndex = 0;
+      let match;
+      while ((match = pattern.exec(text)) !== null) {
+        if (match.index > lastIndex) {
+          parent.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+        }
+        if (match[2]) {
+          const strong = document.createElement("strong");
+          strong.textContent = match[2];
+          parent.appendChild(strong);
+        } else {
+          const code = document.createElement("code");
+          code.textContent = match[3];
+          parent.appendChild(code);
+        }
+        lastIndex = pattern.lastIndex;
+      }
+      if (lastIndex < text.length) {
+        parent.appendChild(document.createTextNode(text.slice(lastIndex)));
+      }
+    }
 
-    function renderMarkdown(text) {
-      const map = {
-        "&": "&amp;","<":"&lt;",">":"&gt;","\"":"&quot;",
-      };
-      let html = text.replace(/[&<>"]/g, c => map[c]);
-      html = html.replace(/### (.+)/g, '<h3 style="margin:18px 0 8px;color:var(--text)">$1</h3>');
-      html = html.replace(/## (.+)/g, '<h2 style="margin:22px 0 10px;color:var(--text);font-size:18px">$1</h2>');
-      html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-      html = html.replace(/\n- /g, '<br>• ');
-      html = html.replace(/\n\d\. /g, '<br>');
-      html = html.replace(/\n{2,}/g, '</p><p style="margin:10px 0">');
-      html = html.replace(/\n/g, '<br>');
-      html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre style="background:#f4f5f7;padding:12px;border-radius:6px;overflow-x:auto;font-size:13px;margin:10px 0"><code>$2</code></pre>');
-      html = html.replace(/`(.+?)`/g, '<code style="background:#f4f5f7;padding:2px 6px;border-radius:3px;font-size:13px">$1</code>');
-      return '<p style="margin:10px 0">' + html + '</p>';
+    function flushParagraph(container, lines) {
+      if (!lines.length) return;
+      const p = document.createElement("p");
+      appendInline(p, lines.join(" "));
+      container.appendChild(p);
+      lines.length = 0;
+    }
+
+    function renderMarkdownInto(container, text) {
+      container.replaceChildren();
+      const lines = String(text || "").split(/\r?\n/);
+      const paragraph = [];
+      let list = null;
+      let ordered = false;
+      let code = null;
+
+      function closeList() {
+        if (list) {
+          container.appendChild(list);
+          list = null;
+        }
+      }
+
+      lines.forEach(rawLine => {
+        const line = rawLine.trimEnd();
+        if (line.startsWith("```")) {
+          if (code) {
+            const pre = document.createElement("pre");
+            const codeEl = document.createElement("code");
+            codeEl.textContent = code.join("\n");
+            pre.appendChild(codeEl);
+            container.appendChild(pre);
+            code = null;
+          } else {
+            flushParagraph(container, paragraph);
+            closeList();
+            code = [];
+          }
+          return;
+        }
+        if (code) {
+          code.push(rawLine);
+          return;
+        }
+        const trimmed = line.trim();
+        if (!trimmed) {
+          flushParagraph(container, paragraph);
+          closeList();
+          return;
+        }
+        if (trimmed.startsWith("## ")) {
+          flushParagraph(container, paragraph);
+          closeList();
+          const h2 = document.createElement("h2");
+          h2.textContent = trimmed.slice(3).trim();
+          container.appendChild(h2);
+          return;
+        }
+        if (trimmed.startsWith("### ")) {
+          flushParagraph(container, paragraph);
+          closeList();
+          const h3 = document.createElement("h3");
+          h3.textContent = trimmed.slice(4).trim();
+          container.appendChild(h3);
+          return;
+        }
+        const bullet = trimmed.match(/^[-*]\s+(.+)$/);
+        const numbered = trimmed.match(/^\d+[.)]\s+(.+)$/);
+        if (bullet || numbered) {
+          flushParagraph(container, paragraph);
+          const shouldOrder = Boolean(numbered);
+          if (!list || ordered !== shouldOrder) {
+            closeList();
+            list = document.createElement(shouldOrder ? "ol" : "ul");
+            ordered = shouldOrder;
+          }
+          const li = document.createElement("li");
+          appendInline(li, (bullet || numbered)[1]);
+          list.appendChild(li);
+          return;
+        }
+        paragraph.push(trimmed);
+      });
+      flushParagraph(container, paragraph);
+      closeList();
+      if (code) {
+        const pre = document.createElement("pre");
+        const codeEl = document.createElement("code");
+        codeEl.textContent = code.join("\n");
+        pre.appendChild(codeEl);
+        container.appendChild(pre);
+      }
+    }
+
+    function domainOf(url) {
+      try {
+        return new URL(url).hostname.replace(/^www\./, "");
+      } catch {
+        return url || "-";
+      }
+    }
+
+    function renderSourceList(sources) {
+      const sourceList = document.querySelector("#sourceList");
+      sourceList.replaceChildren();
+      if (!sources.length) {
+        const empty = document.createElement("div");
+        empty.className = "muted";
+        empty.textContent = "本次未返回外部来源。";
+        sourceList.appendChild(empty);
+        return;
+      }
+      sources.forEach((src, index) => {
+        const link = document.createElement("a");
+        link.href = src.url;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.className = "source-item";
+        const title = document.createElement("span");
+        title.className = "source-title";
+        title.textContent = `${index + 1}. ${src.title || "未命名来源"}`;
+        const domain = document.createElement("span");
+        domain.className = "source-domain";
+        domain.textContent = domainOf(src.url);
+        link.append(title, domain);
+        sourceList.appendChild(link);
+      });
     }
 
     async function startAnalyze() {
       const topicInput = document.querySelector("#analyzeTopic");
       const topic = topicInput.value.trim();
-      if (!topic) { showToast("请输入分析主题"); return; }
+      if (!topic) {
+        showToast("请输入分析主题");
+        return;
+      }
 
       const resultDiv = document.querySelector("#analyzeResult");
+      const emptyDiv = document.querySelector("#analyzeEmpty");
       const loadingDiv = document.querySelector("#analyzeLoading");
       const contentDiv = document.querySelector("#analyzeContent");
-      const sourceListDiv = document.querySelector("#sourceList");
       const badgeSpan = document.querySelector("#sourceBadge");
+      const startButton = document.querySelector("#startAnalyze");
 
-      resultDiv.style.display = "none";
-      loadingDiv.style.display = "block";
+      resultDiv.hidden = true;
+      emptyDiv.hidden = true;
+      loadingDiv.classList.add("show");
+      startButton.disabled = true;
 
       try {
         const data = await request("/api/v1/analyze", {
@@ -681,36 +1436,22 @@
           body: JSON.stringify({ topic })
         });
 
-        contentDiv.innerHTML = renderMarkdown(data.analysis);
-        badgeSpan.textContent = `📡 ${data.source_count} 个来源`;
-
-        // 来源列表
-        sourceListDiv.innerHTML = "";
-        (data.sources || []).forEach((src, i) => {
-          const link = document.createElement("a");
-          link.href = src.url;
-          link.target = "_blank";
-          link.rel = "noopener";
-          link.textContent = `${i + 1}. ${src.title}`;
-          link.style.display = "block";
-          link.style.padding = "4px 0";
-          link.style.color = "var(--primary)";
-          link.style.textDecoration = "none";
-          link.style.fontSize = "14px";
-          sourceListDiv.appendChild(link);
-        });
-
-        document.querySelector("#analyzeTitle").textContent = `📊 ${topic} — AI 分析报告`;
-        resultDiv.style.display = "block";
-        showToast(`✅ 分析完成，共 ${data.source_count} 个信息来源`);
+        renderMarkdownInto(contentDiv, data.analysis);
+        renderSourceList(data.sources || []);
+        badgeSpan.textContent = `${data.source_count || 0} 个来源`;
+        document.querySelector("#analyzeTitle").textContent = `${topic} - AI 分析报告`;
+        resultDiv.hidden = false;
+        showToast(`分析完成，共 ${data.source_count || 0} 个信息来源`);
       } catch (error) {
-        showToast("分析失败: " + error.message);
+        emptyDiv.hidden = false;
+        showToast("分析失败：" + error.message);
       } finally {
-        loadingDiv.style.display = "none";
+        loadingDiv.classList.remove("show");
+        startButton.disabled = false;
       }
     }
 
-    function activateView(view) {
+    function activateView(view, updateUrl = true) {
       const button = document.querySelector(`nav button[data-view="${view}"]`);
       const panel = document.querySelector(`#${view}`);
       if (!button || !panel) return;
@@ -718,7 +1459,13 @@
       document.querySelectorAll(".view").forEach(item => item.classList.remove("active"));
       button.classList.add("active");
       panel.classList.add("active");
+      if (updateUrl) {
+        const url = new URL(window.location.href);
+        url.searchParams.set("view", view);
+        window.history.replaceState(null, "", url);
+      }
     }
+
     document.querySelectorAll("nav button").forEach(button => {
       button.addEventListener("click", () => activateView(button.dataset.view));
     });
@@ -727,21 +1474,35 @@
       refreshAll();
     });
     document.querySelector("#refreshAll").addEventListener("click", refreshAll);
-    document.querySelector("#loadTrends").addEventListener("click", () => loadTrends().catch(e => showToast(e.message)));
-    document.querySelector("#searchItems").addEventListener("click", () => loadItems().catch(e => showToast(e.message)));
-    document.querySelector("#loadSources").addEventListener("click", () => loadSources().catch(e => showToast(e.message)));
-    document.querySelector("#loadReports").addEventListener("click", () => loadReports().catch(e => showToast(e.message)));
+    document.querySelector("#loadTrends").addEventListener("click", () => loadTrends().then(updateLastSync).catch(e => showToast(e.message)));
+    document.querySelector("#searchItems").addEventListener("click", () => loadItems().then(updateLastSync).catch(e => showToast(e.message)));
+    document.querySelector("#loadSources").addEventListener("click", () => loadSources().then(updateLastSync).catch(e => showToast(e.message)));
+    document.querySelector("#loadReports").addEventListener("click", () => loadReports().then(updateLastSync).catch(e => showToast(e.message)));
     document.querySelector("#createSource").addEventListener("click", () => createSource().catch(e => showToast(e.message)));
     document.querySelector("#createReport").addEventListener("click", () => createReport().catch(e => showToast(e.message)));
     document.querySelector("#startAnalyze").addEventListener("click", startAnalyze);
-    document.querySelector("#analyzeTopic").addEventListener("keydown", e => { if (e.key === "Enter") startAnalyze(); });
+    document.querySelector("#analyzeTopic").addEventListener("keydown", e => {
+      if (e.key === "Enter") startAnalyze();
+    });
+    document.querySelector("#keyword").addEventListener("keydown", e => {
+      if (e.key === "Enter") loadItems().then(updateLastSync).catch(err => showToast(err.message));
+    });
     document.querySelector("#copyAnalysis").addEventListener("click", async () => {
       const text = document.querySelector("#analyzeContent").textContent;
-      try { await navigator.clipboard.writeText(text); showToast("已复制到剪贴板"); } catch { showToast("复制失败"); }
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast("已复制到剪贴板");
+      } catch {
+        showToast("复制失败");
+      }
     });
     document.querySelector("#closeModal").addEventListener("click", closeModal);
     document.querySelector("[data-close-modal]").addEventListener("click", closeModal);
-    activateView(new URLSearchParams(window.location.search).get("view") || "dashboard");
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape" && !modal.hidden) closeModal();
+    });
+
+    activateView(new URLSearchParams(window.location.search).get("view") || "dashboard", false);
     refreshAll();
   </script>
 </body>
