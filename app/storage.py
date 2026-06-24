@@ -6,6 +6,38 @@ from pathlib import Path
 from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from xml.sax.saxutils import escape
+from zipfile import ZIP_DEFLATED, ZipFile
+
+try:  # optional dependency; a stdlib fallback is used when unavailable.
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+except ImportError:  # pragma: no cover - exercised in environments without openpyxl
+    Workbook = None
+    Font = None
+    PatternFill = None
+
+try:  # optional dependency; a stdlib fallback is used when unavailable.
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+except ImportError:  # pragma: no cover - exercised in environments without reportlab
+    colors = None
+    A4 = None
+    ParagraphStyle = None
+    getSampleStyleSheet = None
+    mm = None
+    pdfmetrics = None
+    UnicodeCIDFont = None
+    Paragraph = None
+    SimpleDocTemplate = None
+    Spacer = None
+    Table = None
+    TableStyle = None
 
 from app.analysis import calculate_trends, clean_raw_item, content_hash, validate_clean_result
 from app.schemas import DataSource, RawItem, ValidationError, utc_now
@@ -86,6 +118,7 @@ CREATE TABLE IF NOT EXISTS reports (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     report_name TEXT NOT NULL,
     report_type TEXT NOT NULL,
+    file_format TEXT NOT NULL DEFAULT 'xlsx',
     file_path TEXT NOT NULL,
     generated_by TEXT NOT NULL,
     generated_at TEXT NOT NULL
@@ -218,6 +251,7 @@ class Repository:
     def __init__(self, db_path: Path | str = "data/app.db") -> None:
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self.report_dir = self.db_path.parent / "reports"
 
     def connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
@@ -240,11 +274,17 @@ class Repository:
     def initialize(self) -> None:
         with self.session() as conn:
             conn.executescript(SCHEMA)
+            self._ensure_report_columns(conn)
             if not conn.execute("SELECT 1 FROM users LIMIT 1").fetchone():
                 conn.execute(
                     "INSERT INTO users(username, password_hash, role, status, created_at) VALUES(?,?,?,?,?)",
                     ("admin", "demo-password-hash", "admin", "enabled", utc_now()),
                 )
+
+    def _ensure_report_columns(self, conn: sqlite3.Connection) -> None:
+        columns = {str(row["name"]) for row in conn.execute("PRAGMA table_info(reports)").fetchall()}
+        if "file_format" not in columns:
+            conn.execute("ALTER TABLE reports ADD COLUMN file_format TEXT NOT NULL DEFAULT 'xlsx'")
 
     def create_source(self, source: DataSource) -> dict[str, Any]:
         with self.session() as conn:
@@ -412,18 +452,508 @@ class Repository:
             )
             return [dict(row) for row in rows]
 
-    def create_report(self, report_type: str = "summary", generated_by: str = "组长") -> dict[str, Any]:
-        name = f"{PROJECT_REPORT_PREFIX}-{utc_now()}.{report_type}"
-        path = f"reports/{name}"
+    def get_topic_detail(self, topic: str, limit: int = 20) -> dict[str, Any]:
+        like = f"%{topic}%"
         with self.session() as conn:
+            trends = [
+                dict(row)
+                for row in conn.execute(
+                    """
+                    SELECT topic, score, direction, period_start, period_end
+                    FROM topic_trends
+                    WHERE topic = ?
+                    ORDER BY score DESC
+                    """,
+                    (topic,),
+                )
+            ]
+            rows = conn.execute(
+                """
+                SELECT raw_items.id, raw_items.source_id, raw_items.title, raw_items.url, raw_items.published_at,
+                       clean_items.normalized_title, clean_items.keywords, clean_items.quality_score
+                FROM raw_items
+                JOIN clean_items ON clean_items.raw_id = raw_items.id
+                WHERE raw_items.title LIKE ? OR raw_items.content LIKE ? OR clean_items.keywords LIKE ?
+                ORDER BY raw_items.published_at DESC
+                LIMIT ?
+                """,
+                (like, like, like, limit),
+            )
+            return {"topic": topic, "series": trends, "items": [dict(row) for row in rows]}
+
+    def create_report(
+        self,
+        report_type: str = "summary",
+        file_format: str = "xlsx",
+        generated_by: str = "组长",
+    ) -> dict[str, Any]:
+        report_type = report_type.lower().strip()
+        file_format = file_format.lower().strip()
+        if report_type not in VALID_REPORT_TYPES:
+            raise ValidationError(f"report_type 必须是 {'/'.join(VALID_REPORT_TYPES)} 之一")
+        if file_format not in VALID_REPORT_FORMATS:
+            raise ValidationError(f"format 必须是 {'/'.join(VALID_REPORT_FORMATS)} 之一")
+
+        self.report_dir.mkdir(parents=True, exist_ok=True)
+        generated_at = utc_now()
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        name = f"{PROJECT_REPORT_PREFIX}-{timestamp}-{report_type}.{file_format}"
+        path = self.report_dir / name
+        with self.session() as conn:
+            payload = self._build_report_payload(conn, report_type, generated_by, generated_at)
+            self._write_report_file(path, file_format, payload)
             cursor = conn.execute(
-                "INSERT INTO reports(report_name, report_type, file_path, generated_by, generated_at) VALUES(?,?,?,?,?)",
-                (name, report_type, path, generated_by, utc_now()),
+                """
+                INSERT INTO reports(report_name, report_type, file_format, file_path, generated_by, generated_at)
+                VALUES(?,?,?,?,?,?)
+                """,
+                (name, report_type, file_format, str(path), generated_by, generated_at),
             )
             report_id = int(cursor.lastrowid)
             self._audit(conn, "create_report", "reports", report_id)
             row = conn.execute("SELECT * FROM reports WHERE id = ?", (report_id,)).fetchone()
-            return dict(row)
+            return self._decorate_report(dict(row))
+
+    def list_reports(self) -> list[dict[str, Any]]:
+        with self.session() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, report_name, report_type, file_format, file_path, generated_by, generated_at
+                FROM reports
+                ORDER BY id DESC
+                """
+            )
+            return [self._decorate_report(dict(row)) for row in rows]
+
+    def get_report(self, report_id: int) -> dict[str, Any]:
+        with self.session() as conn:
+            row = conn.execute(
+                """
+                SELECT id, report_name, report_type, file_format, file_path, generated_by, generated_at
+                FROM reports
+                WHERE id = ?
+                """,
+                (report_id,),
+            ).fetchone()
+            if row is None:
+                raise ValueError(f"report {report_id} not found")
+            return self._decorate_report(dict(row))
+
+    def get_report_file(self, report_id: int) -> tuple[Path, dict[str, Any]]:
+        report = self.get_report(report_id)
+        path = self._resolve_report_path(str(report["file_path"]))
+        if not path.exists() or not path.is_file():
+            raise ValueError(f"report file {report_id} not found")
+        return path, report
+
+    def _decorate_report(self, row: dict[str, Any]) -> dict[str, Any]:
+        row["download_url"] = f"/api/v1/reports/{row['id']}/download"
+        return row
+
+    def _resolve_report_path(self, file_path: str) -> Path:
+        path = Path(file_path)
+        if not path.is_absolute():
+            path = Path.cwd() / path
+        resolved = path.resolve()
+        report_root = self.report_dir.resolve()
+        if resolved != report_root and report_root not in resolved.parents:
+            raise ValueError("report path is outside reports directory")
+        return resolved
+
+    def _build_report_payload(
+        self,
+        conn: sqlite3.Connection,
+        report_type: str,
+        generated_by: str,
+        generated_at: str,
+    ) -> dict[str, Any]:
+        source_count = int(conn.execute("SELECT COUNT(*) FROM data_sources").fetchone()[0])
+        item_count = int(conn.execute("SELECT COUNT(*) FROM raw_items").fetchone()[0])
+        task_count = int(conn.execute("SELECT COUNT(*) FROM collect_tasks").fetchone()[0])
+        trends = [
+            dict(row)
+            for row in conn.execute(
+                """
+                SELECT topic, score, direction, period_start, period_end
+                FROM topic_trends
+                ORDER BY score DESC, topic ASC
+                LIMIT 20
+                """
+            )
+        ]
+        item_limit = 200 if report_type == "detail" else 30
+        items = [
+            dict(row)
+            for row in conn.execute(
+                """
+                SELECT raw_items.id, raw_items.title, raw_items.url, raw_items.published_at,
+                       clean_items.keywords, clean_items.quality_score
+                FROM raw_items
+                JOIN clean_items ON clean_items.raw_id = raw_items.id
+                ORDER BY raw_items.published_at DESC
+                LIMIT ?
+                """,
+                (item_limit,),
+            )
+        ]
+        return {
+            "report_type": report_type,
+            "generated_by": generated_by,
+            "generated_at": generated_at,
+            "summary": {
+                "source_count": source_count,
+                "item_count": item_count,
+                "task_count": task_count,
+                "trend_count": len(trends),
+            },
+            "trends": trends,
+            "items": items,
+        }
+
+    def _write_report_file(self, path: Path, file_format: str, payload: dict[str, Any]) -> None:
+        if file_format == "xlsx":
+            self._write_xlsx_report(path, payload)
+            return
+        if file_format == "pdf":
+            self._write_pdf_report(path, payload)
+            return
+        raise ValidationError(f"format 必须是 {'/'.join(VALID_REPORT_FORMATS)} 之一")
+
+    def _write_xlsx_report(self, path: Path, payload: dict[str, Any]) -> None:
+        if Workbook is None or Font is None or PatternFill is None:
+            self._write_basic_xlsx_report(path, payload)
+            return
+
+        workbook = Workbook()
+        header_fill = PatternFill("solid", fgColor="D9EAF7")
+        header_font = Font(bold=True)
+
+        summary_sheet = workbook.active
+        summary_sheet.title = "概览"
+        summary_sheet.append(["字段", "内容"])
+        for cell in summary_sheet[1]:
+            cell.font = header_font
+            cell.fill = header_fill
+        summary_sheet.append(["报表类型", payload["report_type"]])
+        summary_sheet.append(["生成人", payload["generated_by"]])
+        summary_sheet.append(["生成时间", payload["generated_at"]])
+        for key, value in payload["summary"].items():
+            summary_sheet.append([key, value])
+
+        trends_sheet = workbook.create_sheet("趋势榜")
+        trends_sheet.append(["主题", "分数", "方向", "周期开始", "周期结束"])
+        for cell in trends_sheet[1]:
+            cell.font = header_font
+            cell.fill = header_fill
+        for trend in payload["trends"]:
+            trends_sheet.append(
+                [
+                    trend["topic"],
+                    trend["score"],
+                    trend["direction"],
+                    trend["period_start"],
+                    trend["period_end"],
+                ]
+            )
+
+        items_sheet = workbook.create_sheet("信息明细")
+        items_sheet.append(["ID", "标题", "URL", "发布时间", "关键词", "质量分"])
+        for cell in items_sheet[1]:
+            cell.font = header_font
+            cell.fill = header_fill
+        for item in payload["items"]:
+            items_sheet.append(
+                [
+                    item["id"],
+                    item["title"],
+                    item["url"],
+                    item["published_at"],
+                    item["keywords"],
+                    item["quality_score"],
+                ]
+            )
+
+        for sheet in workbook.worksheets:
+            for column_cells in sheet.columns:
+                max_length = max(len(str(cell.value or "")) for cell in column_cells)
+                sheet.column_dimensions[column_cells[0].column_letter].width = min(max(max_length + 2, 12), 42)
+
+        workbook.save(path)
+
+    def _write_pdf_report(self, path: Path, payload: dict[str, Any]) -> None:
+        reportlab_ready = all(
+            (
+                colors,
+                A4,
+                ParagraphStyle,
+                getSampleStyleSheet,
+                mm,
+                pdfmetrics,
+                UnicodeCIDFont,
+                Paragraph,
+                SimpleDocTemplate,
+                Spacer,
+                Table,
+                TableStyle,
+            )
+        )
+        if not reportlab_ready:
+            self._write_basic_pdf_report(path, payload)
+            return
+
+        pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
+        styles = getSampleStyleSheet()
+        normal = ParagraphStyle("ChineseNormal", parent=styles["Normal"], fontName="STSong-Light", fontSize=9, leading=13)
+        heading = ParagraphStyle("ChineseHeading", parent=styles["Heading1"], fontName="STSong-Light", fontSize=16, leading=22)
+
+        document = SimpleDocTemplate(
+            str(path),
+            pagesize=A4,
+            leftMargin=16 * mm,
+            rightMargin=16 * mm,
+            topMargin=16 * mm,
+            bottomMargin=16 * mm,
+        )
+        story: list[Any] = [
+            Paragraph("信息收集整合系统报表", heading),
+            Spacer(1, 6),
+            Paragraph(f"报表类型：{payload['report_type']}", normal),
+            Paragraph(f"生成人：{payload['generated_by']}", normal),
+            Paragraph(f"生成时间：{payload['generated_at']}", normal),
+            Spacer(1, 8),
+        ]
+
+        summary_rows = [["字段", "内容"]] + [[key, str(value)] for key, value in payload["summary"].items()]
+        story.append(self._pdf_table(summary_rows, normal, [45 * mm, 90 * mm]))
+        story.append(Spacer(1, 10))
+
+        trend_rows = [["主题", "分数", "方向", "周期"]]
+        for trend in payload["trends"][:12]:
+            trend_rows.append(
+                [
+                    str(trend["topic"])[:32],
+                    str(trend["score"]),
+                    str(trend["direction"]),
+                    f"{trend['period_start']} ~ {trend['period_end']}",
+                ]
+            )
+        story.append(Paragraph("趋势榜", normal))
+        story.append(self._pdf_table(trend_rows, normal, [58 * mm, 22 * mm, 24 * mm, 48 * mm]))
+        story.append(Spacer(1, 10))
+
+        item_rows = [["ID", "标题", "发布时间", "质量分"]]
+        for item in payload["items"][:18]:
+            item_rows.append(
+                [
+                    str(item["id"]),
+                    str(item["title"])[:42],
+                    str(item["published_at"])[:19],
+                    str(item["quality_score"]),
+                ]
+            )
+        story.append(Paragraph("信息明细", normal))
+        story.append(self._pdf_table(item_rows, normal, [14 * mm, 83 * mm, 38 * mm, 18 * mm]))
+        document.build(story)
+
+    def _pdf_table(self, rows: list[list[Any]], style: ParagraphStyle, widths: list[float]) -> Table:
+        table_rows = [[Paragraph(str(cell), style) for cell in row] for row in rows]
+        table = Table(table_rows, colWidths=widths, repeatRows=1)
+        table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#D9EAF7")),
+                    ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#8FA8BD")),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]
+            )
+        )
+        return table
+
+    def _write_basic_xlsx_report(self, path: Path, payload: dict[str, Any]) -> None:
+        sheets = [
+            (
+                "概览",
+                [["字段", "内容"]]
+                + [
+                    ["报表类型", payload["report_type"]],
+                    ["生成人", payload["generated_by"]],
+                    ["生成时间", payload["generated_at"]],
+                ]
+                + [[key, value] for key, value in payload["summary"].items()],
+            ),
+            (
+                "趋势榜",
+                [["主题", "分数", "方向", "周期开始", "周期结束"]]
+                + [
+                    [
+                        trend["topic"],
+                        trend["score"],
+                        trend["direction"],
+                        trend["period_start"],
+                        trend["period_end"],
+                    ]
+                    for trend in payload["trends"]
+                ],
+            ),
+            (
+                "信息明细",
+                [["ID", "标题", "URL", "发布时间", "关键词", "质量分"]]
+                + [
+                    [
+                        item["id"],
+                        item["title"],
+                        item["url"],
+                        item["published_at"],
+                        item["keywords"],
+                        item["quality_score"],
+                    ]
+                    for item in payload["items"]
+                ],
+            ),
+        ]
+        with ZipFile(path, "w", ZIP_DEFLATED) as archive:
+            archive.writestr("[Content_Types].xml", self._xlsx_content_types(len(sheets)))
+            archive.writestr("_rels/.rels", self._xlsx_root_rels())
+            archive.writestr("xl/workbook.xml", self._xlsx_workbook(sheets))
+            archive.writestr("xl/_rels/workbook.xml.rels", self._xlsx_workbook_rels(len(sheets)))
+            for index, (_, rows) in enumerate(sheets, start=1):
+                archive.writestr(f"xl/worksheets/sheet{index}.xml", self._xlsx_sheet(rows))
+
+    def _xlsx_content_types(self, sheet_count: int) -> str:
+        sheet_overrides = "".join(
+            f'<Override PartName="/xl/worksheets/sheet{index}.xml" '
+            'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            for index in range(1, sheet_count + 1)
+        )
+        return (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            '<Default Extension="xml" ContentType="application/xml"/>'
+            '<Override PartName="/xl/workbook.xml" '
+            'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            f"{sheet_overrides}</Types>"
+        )
+
+    def _xlsx_root_rels(self) -> str:
+        return (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" '
+            'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" '
+            'Target="xl/workbook.xml"/>'
+            "</Relationships>"
+        )
+
+    def _xlsx_workbook(self, sheets: list[tuple[str, list[list[Any]]]]) -> str:
+        sheet_nodes = "".join(
+            f'<sheet name="{escape(name)}" sheetId="{index}" r:id="rId{index}"/>'
+            for index, (name, _) in enumerate(sheets, start=1)
+        )
+        return (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+            'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            f"<sheets>{sheet_nodes}</sheets></workbook>"
+        )
+
+    def _xlsx_workbook_rels(self, sheet_count: int) -> str:
+        rels = "".join(
+            f'<Relationship Id="rId{index}" '
+            'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" '
+            f'Target="worksheets/sheet{index}.xml"/>'
+            for index in range(1, sheet_count + 1)
+        )
+        return (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            f"{rels}</Relationships>"
+        )
+
+    def _xlsx_sheet(self, rows: list[list[Any]]) -> str:
+        row_nodes = []
+        for row_index, row in enumerate(rows, start=1):
+            cells = []
+            for col_index, value in enumerate(row, start=1):
+                cell_ref = f"{self._xlsx_column_name(col_index)}{row_index}"
+                text = escape(str(value if value is not None else ""))
+                cells.append(f'<c r="{cell_ref}" t="inlineStr"><is><t>{text}</t></is></c>')
+            row_nodes.append(f'<row r="{row_index}">{"".join(cells)}</row>')
+        return (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            f'<sheetData>{"".join(row_nodes)}</sheetData></worksheet>'
+        )
+
+    def _xlsx_column_name(self, index: int) -> str:
+        name = ""
+        while index:
+            index, remainder = divmod(index - 1, 26)
+            name = chr(65 + remainder) + name
+        return name
+
+    def _write_basic_pdf_report(self, path: Path, payload: dict[str, Any]) -> None:
+        lines = [
+            "Information Collection Integration System Report",
+            f"Report type: {payload['report_type']}",
+            f"Generated by: {payload['generated_by']}",
+            f"Generated at: {payload['generated_at']}",
+            f"Sources: {payload['summary']['source_count']}",
+            f"Items: {payload['summary']['item_count']}",
+            f"Tasks: {payload['summary']['task_count']}",
+            f"Trends: {payload['summary']['trend_count']}",
+            "Top trends:",
+        ]
+        for trend in payload["trends"][:8]:
+            lines.append(f"- {trend['topic']} / {trend['score']} / {trend['direction']}")
+        self._write_minimal_pdf(path, lines)
+
+    def _write_minimal_pdf(self, path: Path, lines: list[str]) -> None:
+        text_lines = ["BT", "/F1 11 Tf", "50 800 Td", "14 TL"]
+        for line in lines:
+            text_lines.append(f"({self._pdf_escape(line)}) Tj")
+            text_lines.append("T*")
+        text_lines.append("ET")
+        stream = "\n".join(text_lines).encode("latin-1", errors="replace")
+        objects = [
+            b"<< /Type /Catalog /Pages 2 0 R >>",
+            b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
+            b"/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+            b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+            b"<< /Length " + str(len(stream)).encode("ascii") + b" >>\nstream\n" + stream + b"\nendstream",
+        ]
+        content = bytearray(b"%PDF-1.4\n")
+        offsets = [0]
+        for index, obj in enumerate(objects, start=1):
+            offsets.append(len(content))
+            content.extend(f"{index} 0 obj\n".encode("ascii"))
+            content.extend(obj)
+            content.extend(b"\nendobj\n")
+        xref_offset = len(content)
+        content.extend(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+        content.extend(b"0000000000 65535 f \n")
+        for offset in offsets[1:]:
+            content.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
+        content.extend(
+            (
+                "trailer\n"
+                f"<< /Size {len(objects) + 1} /Root 1 0 R >>\n"
+                "startxref\n"
+                f"{xref_offset}\n"
+                "%%EOF\n"
+            ).encode("ascii")
+        )
+        path.write_bytes(bytes(content))
+
+    def _pdf_escape(self, value: Any) -> str:
+        text = str(value)
+        ascii_text = "".join(ch if 32 <= ord(ch) <= 126 else "?" for ch in text)
+        return ascii_text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
 
     def health(self) -> dict[str, Any]:
         with self.session() as conn:
@@ -521,3 +1051,5 @@ class Repository:
 
 
 PROJECT_REPORT_PREFIX = "trend-report"
+VALID_REPORT_TYPES = ("summary", "detail")
+VALID_REPORT_FORMATS = ("xlsx", "pdf")

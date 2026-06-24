@@ -7,7 +7,7 @@ import threading
 import unittest
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 from app.main import create_server
 
@@ -35,6 +35,25 @@ class ApiIntegrationTest(unittest.TestCase):
             response = conn.getresponse()
             data = json.loads(response.read().decode("utf-8"))
             return response.status, data
+        finally:
+            conn.close()
+
+    def request_raw(self, method: str, path: str, body: str) -> tuple[int, dict[str, Any]]:
+        conn = http.client.HTTPConnection(self.host, self.port, timeout=5)
+        try:
+            conn.request(method, path, body=body.encode("utf-8"), headers={"Content-Type": "application/json"})
+            response = conn.getresponse()
+            data = json.loads(response.read().decode("utf-8"))
+            return response.status, data
+        finally:
+            conn.close()
+
+    def download(self, path: str) -> tuple[int, str | None, bytes]:
+        conn = http.client.HTTPConnection(self.host, self.port, timeout=5)
+        try:
+            conn.request("GET", path)
+            response = conn.getresponse()
+            return response.status, response.getheader("Content-Type"), response.read()
         finally:
             conn.close()
 
@@ -91,6 +110,67 @@ class ApiIntegrationTest(unittest.TestCase):
         status, trends = self.request("GET", "/api/v1/trends")
         self.assertEqual(status, 200)
         self.assertGreater(len(trends["data"]["topics"]), 0)
+
+    def test_bad_request_inputs_return_400(self) -> None:
+        cases = [
+            ("POST", "/api/v1/tasks/collect", {}),
+            ("GET", "/api/v1/items?limit=abc", None),
+            ("GET", "/api/v1/items?limit=-1", None),
+            ("GET", "/api/v1/items/abc", None),
+            ("GET", "/api/v1/trends?limit=0", None),
+        ]
+        for method, path, payload in cases:
+            with self.subTest(path=path):
+                status, response = self.request(method, path, payload)
+                self.assertEqual(status, 400)
+                self.assertEqual(response["code"], 400)
+
+        status, response = self.request_raw("POST", "/api/v1/tasks/collect", "{bad json")
+        self.assertEqual(status, 400)
+        self.assertEqual(response["code"], 400)
+
+    def test_chinese_topic_detail_returns_series_or_items(self) -> None:
+        status, trends = self.request("GET", "/api/v1/trends")
+        self.assertEqual(status, 200)
+        topic = trends["data"]["topics"][0]["topic"]
+
+        status, detail = self.request("GET", f"/api/v1/trends/{quote(topic)}")
+
+        self.assertEqual(status, 200)
+        self.assertEqual(detail["data"]["topic"], topic)
+        self.assertTrue(detail["data"]["series"] or detail["data"]["items"])
+
+    def test_report_validation_and_downloads(self) -> None:
+        status, response = self.request("POST", "/api/v1/reports", {"report_type": "bad", "format": "xlsx"})
+        self.assertEqual(status, 400)
+        self.assertEqual(response["code"], 400)
+
+        status, response = self.request("POST", "/api/v1/reports", {"report_type": "summary", "format": "bad"})
+        self.assertEqual(status, 400)
+        self.assertEqual(response["code"], 400)
+
+        for file_format, content_type in (
+            ("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+            ("pdf", "application/pdf"),
+        ):
+            with self.subTest(file_format=file_format):
+                status, created = self.request(
+                    "POST",
+                    "/api/v1/reports",
+                    {"report_type": "detail", "format": file_format, "generated_by": "组长"},
+                )
+                self.assertEqual(status, 200)
+                self.assertEqual(created["data"]["file_format"], file_format)
+                self.assertTrue(created["data"]["download_url"].endswith("/download"))
+
+                status, report_content_type, body = self.download(created["data"]["download_url"])
+                self.assertEqual(status, 200)
+                self.assertEqual(report_content_type, content_type)
+                self.assertGreater(len(body), 100)
+
+        status, reports = self.request("GET", "/api/v1/reports")
+        self.assertEqual(status, 200)
+        self.assertGreaterEqual(len(reports["data"]["items"]), 2)
 
 
 if __name__ == "__main__":

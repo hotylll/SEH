@@ -1,5 +1,2 @@
-# Runtime uses only the Python standard library.
-# Optional future upgrade path:
-# fastapi
-# uvicorn
-
+openpyxl>=3.1,<4
+reportlab>=4.0,<5

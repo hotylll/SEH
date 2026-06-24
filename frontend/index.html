@@ -123,6 +123,58 @@
     .view.active { display: block; }
     .muted { color: var(--muted); }
     .error { color: var(--danger); }
+    .action-btn {
+      height: 28px;
+      padding: 0 8px;
+      color: var(--primary);
+      border-color: #b8cbff;
+      background: #f5f8ff;
+    }
+    .detail-grid {
+      display: grid;
+      grid-template-columns: 92px minmax(0, 1fr);
+      gap: 8px 12px;
+      margin-bottom: 14px;
+    }
+    .detail-label { color: var(--muted); }
+    .detail-value { word-break: break-word; }
+    .modal[hidden] { display: none; }
+    .modal {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      display: grid;
+      place-items: center;
+      padding: 18px;
+    }
+    .modal-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(15, 23, 42, .42);
+    }
+    .modal-panel {
+      position: relative;
+      width: min(920px, 100%);
+      max-height: min(760px, calc(100vh - 36px));
+      overflow: auto;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 18px 54px rgba(15, 23, 42, .24);
+      padding: 16px;
+    }
+    .modal-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .modal-head h2 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.3;
+    }
+    .modal-head button { margin-left: auto; }
     .toast {
       position: fixed;
       right: 18px;
@@ -237,18 +289,34 @@
         <div class="toolbar">
           <h2 style="margin-right:auto">报表中心</h2>
           <select id="reportType"><option>summary</option><option>detail</option></select>
+          <select id="reportFormat"><option>xlsx</option><option>pdf</option></select>
           <input id="generatedBy" value="组长" placeholder="生成人">
           <button class="primary" id="createReport">生成报表</button>
+          <button id="loadReports">刷新记录</button>
         </div>
         <div id="reportResult" class="muted"></div>
+        <div class="table-wrap" style="margin-top:12px"><table id="reportTable"></table></div>
       </div>
     </section>
   </main>
+  <div id="detailModal" class="modal" hidden>
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-head">
+        <h2 id="modalTitle">详情</h2>
+        <button id="closeModal">关闭</button>
+      </div>
+      <div id="modalBody"></div>
+    </div>
+  </div>
   <div id="toast" class="toast"></div>
 
   <script>
-    const state = { trends: [], items: [], sources: [] };
+    const state = { trends: [], items: [], sources: [], reports: [] };
     const apiInput = document.querySelector("#apiBase");
+    const modal = document.querySelector("#detailModal");
+    const modalTitle = document.querySelector("#modalTitle");
+    const modalBody = document.querySelector("#modalBody");
     apiInput.value = localStorage.getItem("apiBase") || apiInput.value;
 
     function apiBase() { return apiInput.value.replace(/\/$/, ""); }
@@ -264,14 +332,92 @@
       if (!response.ok || payload.code !== 0) throw new Error(payload.message || "请求失败");
       return payload.data;
     }
+    function fillCell(cell, value) {
+      if (value instanceof Node) {
+        cell.appendChild(value);
+        return;
+      }
+      const text = String(value ?? "-");
+      cell.textContent = text;
+      cell.title = text;
+    }
+    function buildTable(headers, rows) {
+      const table = document.createElement("table");
+      const thead = document.createElement("thead");
+      const headerRow = document.createElement("tr");
+      headers.forEach(header => {
+        const th = document.createElement("th");
+        th.textContent = header;
+        headerRow.appendChild(th);
+      });
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement("tbody");
+      if (!rows.length) {
+        const emptyRow = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = headers.length;
+        td.textContent = "暂无数据";
+        emptyRow.appendChild(td);
+        tbody.appendChild(emptyRow);
+      } else {
+        rows.forEach(row => {
+          const tr = document.createElement("tr");
+          row.forEach(value => {
+            const td = document.createElement("td");
+            fillCell(td, value);
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        });
+      }
+      table.appendChild(tbody);
+      return table;
+    }
     function setTable(selector, headers, rows) {
       const table = document.querySelector(selector);
-      table.innerHTML = `<thead><tr>${headers.map(h => `<th>${h}</th>`).join("")}</tr></thead>` +
-        `<tbody>${rows.map(row => `<tr>${row.map(cell => `<td title="${String(cell).replaceAll('"', '&quot;')}">${cell}</td>`).join("")}</tr>`).join("")}</tbody>`;
+      const next = buildTable(headers, rows);
+      next.id = selector.slice(1);
+      table.replaceWith(next);
     }
     function trendBadge(direction) {
       const text = { surge: "突增", up: "上升", stable: "稳定", down: "下降", plunge: "骤降" }[direction] || direction;
-      return `<span class="badge ${direction}">${text}</span>`;
+      const badge = document.createElement("span");
+      badge.className = `badge ${direction}`;
+      badge.textContent = text;
+      return badge;
+    }
+    function actionButton(label, onClick) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "action-btn";
+      button.textContent = label;
+      button.addEventListener("click", onClick);
+      return button;
+    }
+    function detailGrid(fields) {
+      const grid = document.createElement("div");
+      grid.className = "detail-grid";
+      fields.forEach(([label, value]) => {
+        const labelEl = document.createElement("div");
+        labelEl.className = "detail-label";
+        labelEl.textContent = label;
+        const valueEl = document.createElement("div");
+        valueEl.className = "detail-value";
+        valueEl.textContent = String(value ?? "-");
+        grid.append(labelEl, valueEl);
+      });
+      return grid;
+    }
+    function showModal(title, body) {
+      modalTitle.textContent = title;
+      modalBody.textContent = "";
+      modalBody.appendChild(body);
+      modal.hidden = false;
+    }
+    function closeModal() {
+      modal.hidden = true;
     }
     async function loadHealth() {
       const data = await request("/api/v1/health");
@@ -282,17 +428,40 @@
       const data = await request(`/api/v1/trends?limit=${encodeURIComponent(limit)}`);
       state.trends = data.topics || [];
       document.querySelector("#topicCount").textContent = state.trends.length;
-      const rows = state.trends.map((t, i) => [i + 1, t.topic, Number(t.score).toFixed(2), trendBadge(t.direction), `${t.period_start} ~ ${t.period_end}`]);
-      setTable("#trendTable", ["#", "主题", "分数", "趋势", "周期"], rows);
-      setTable("#hotTable", ["#", "主题", "分数", "趋势", "周期"], rows.slice(0, 10));
+      const rows = state.trends.map((t, i) => [
+        i + 1,
+        t.topic,
+        Number(t.score).toFixed(2),
+        trendBadge(t.direction),
+        `${t.period_start} ~ ${t.period_end}`,
+        actionButton("详情", () => showTopicDetail(t.topic))
+      ]);
+      setTable("#trendTable", ["#", "主题", "分数", "趋势", "周期", "操作"], rows);
+      setTable("#hotTable", ["#", "主题", "分数", "趋势", "周期", "操作"], rows.slice(0, 10));
       renderBars();
     }
     function renderBars() {
       const max = Math.max(...state.trends.map(t => Number(t.score)), 1);
-      document.querySelector("#barChart").innerHTML = state.trends.slice(0, 8).map(t => {
+      const chart = document.querySelector("#barChart");
+      chart.textContent = "";
+      state.trends.slice(0, 8).forEach(t => {
         const width = Math.max(4, Number(t.score) / max * 100);
-        return `<div class="bar-row"><div title="${t.topic}">${t.topic}</div><div class="bar-track"><div class="bar-fill" style="width:${width}%"></div></div><div>${Number(t.score).toFixed(1)}</div></div>`;
-      }).join("");
+        const row = document.createElement("div");
+        row.className = "bar-row";
+        const label = document.createElement("div");
+        label.textContent = t.topic;
+        label.title = t.topic;
+        const track = document.createElement("div");
+        track.className = "bar-track";
+        const fill = document.createElement("div");
+        fill.className = "bar-fill";
+        fill.style.width = `${width}%`;
+        const score = document.createElement("div");
+        score.textContent = Number(t.score).toFixed(1);
+        track.appendChild(fill);
+        row.append(label, track, score);
+        chart.appendChild(row);
+      });
     }
     async function loadItems() {
       const keyword = document.querySelector("#keyword").value.trim();
@@ -304,8 +473,14 @@
       const data = await request(`/api/v1/items?${query}`);
       state.items = data.items || [];
       document.querySelector("#itemCount").textContent = data.total || state.items.length;
-      setTable("#itemTable", ["ID", "标题", "来源", "发布时间", "关键词", "质量"], state.items.map(item => [
-        item.id, item.title, item.source_id, item.published_at, item.keywords, Number(item.quality_score).toFixed(1)
+      setTable("#itemTable", ["ID", "标题", "来源", "发布时间", "关键词", "质量", "操作"], state.items.map(item => [
+        item.id,
+        item.title,
+        item.source_id,
+        item.published_at,
+        item.keywords,
+        Number(item.quality_score).toFixed(1),
+        actionButton("详情", () => showItemDetail(item.id))
       ]));
     }
     async function loadSources() {
@@ -314,7 +489,7 @@
       document.querySelector("#sourceCount").textContent = state.sources.length;
       setTable("#sourceTable", ["ID", "名称", "类型", "状态", "关键词", "操作"], state.sources.map(source => [
         source.id, source.name, source.source_type, source.status, source.keywords || "-",
-        `<button onclick="collectSource(${source.id})">采集</button>`
+        actionButton("采集", () => collectSource(source.id))
       ]));
     }
     async function collectSource(id) {
@@ -325,6 +500,44 @@
       });
       showToast(`任务 ${data.id}：${data.task_status}，新增 ${data.success_count} 条`);
       await Promise.all([loadItems(), loadTrends()]);
+    }
+    async function showItemDetail(id) {
+      const item = await request(`/api/v1/items/${encodeURIComponent(id)}`);
+      const body = detailGrid([
+        ["标题", item.title],
+        ["正文", item.normalized_content || item.content],
+        ["关键词", item.keywords],
+        ["来源ID", item.source_id],
+        ["URL", item.url],
+        ["发布时间", item.published_at],
+        ["质量分", Number(item.quality_score).toFixed(1)]
+      ]);
+      showModal(`信息详情 #${item.id}`, body);
+    }
+    async function showTopicDetail(topic) {
+      const data = await request(`/api/v1/trends/${encodeURIComponent(topic)}`);
+      const wrap = document.createElement("div");
+      const trend = data.series && data.series[0];
+      wrap.appendChild(detailGrid([
+        ["主题", data.topic],
+        ["分数", trend ? Number(trend.score).toFixed(2) : "-"],
+        ["趋势", trend ? trend.direction : "-"],
+        ["周期", trend ? `${trend.period_start} ~ ${trend.period_end}` : "-"]
+      ]));
+      const title = document.createElement("h2");
+      title.textContent = "关联信息";
+      wrap.appendChild(title);
+      wrap.appendChild(buildTable(
+        ["ID", "标题", "发布时间", "关键词", "质量"],
+        (data.items || []).map(item => [
+          item.id,
+          item.title,
+          item.published_at,
+          item.keywords,
+          Number(item.quality_score).toFixed(1)
+        ])
+      ));
+      showModal("主题详情", wrap);
     }
     async function createSource() {
       const payload = {
@@ -343,21 +556,43 @@
       showToast(`数据源已创建：${data.name}`);
       await loadSources();
     }
+    async function loadReports() {
+      const data = await request("/api/v1/reports");
+      state.reports = data.items || [];
+      setTable("#reportTable", ["ID", "名称", "类型", "格式", "生成人", "生成时间", "操作"], state.reports.map(report => [
+        report.id,
+        report.report_name,
+        report.report_type,
+        report.file_format,
+        report.generated_by,
+        report.generated_at,
+        actionButton("下载", () => downloadReport(report))
+      ]));
+    }
+    function downloadReport(report) {
+      window.open(apiBase() + report.download_url, "_blank", "noopener");
+    }
     async function createReport() {
       const data = await request("/api/v1/reports", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          format: document.querySelector("#reportType").value,
+          report_type: document.querySelector("#reportType").value,
+          format: document.querySelector("#reportFormat").value,
           generated_by: document.querySelector("#generatedBy").value || "组长"
         })
       });
-      document.querySelector("#reportResult").textContent = `${data.report_name} / ${data.file_path}`;
-      showToast("报表记录已生成");
+      const result = document.querySelector("#reportResult");
+      result.textContent = `${data.report_name} / ${data.file_path}`;
+      const download = actionButton("下载", () => downloadReport(data));
+      download.style.marginLeft = "8px";
+      result.appendChild(download);
+      showToast("报表文件已生成");
+      await loadReports();
     }
     async function refreshAll() {
       try {
-        await Promise.all([loadHealth(), loadSources(), loadItems(), loadTrends()]);
+        await Promise.all([loadHealth(), loadSources(), loadItems(), loadTrends(), loadReports()]);
       } catch (error) {
         showToast(error.message);
       }
@@ -382,9 +617,11 @@
     document.querySelector("#loadTrends").addEventListener("click", () => loadTrends().catch(e => showToast(e.message)));
     document.querySelector("#searchItems").addEventListener("click", () => loadItems().catch(e => showToast(e.message)));
     document.querySelector("#loadSources").addEventListener("click", () => loadSources().catch(e => showToast(e.message)));
+    document.querySelector("#loadReports").addEventListener("click", () => loadReports().catch(e => showToast(e.message)));
     document.querySelector("#createSource").addEventListener("click", () => createSource().catch(e => showToast(e.message)));
     document.querySelector("#createReport").addEventListener("click", () => createReport().catch(e => showToast(e.message)));
-    window.collectSource = collectSource;
+    document.querySelector("#closeModal").addEventListener("click", closeModal);
+    document.querySelector("[data-close-modal]").addEventListener("click", closeModal);
     activateView(new URLSearchParams(window.location.search).get("view") || "dashboard");
     refreshAll();
   </script>
