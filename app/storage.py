@@ -4,6 +4,7 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 from collections.abc import Iterator
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.analysis import calculate_trends, clean_raw_item, content_hash, validate_clean_result
@@ -105,32 +106,112 @@ CREATE INDEX IF NOT EXISTS idx_topic_trends_topic_period ON topic_trends(topic, 
 """
 
 
-DEMO_ITEMS = [
-    (
-        "人工智能 助力 城市治理 热点上升",
-        "多地开始使用人工智能技术整理政务公开信息，辅助城市管理者发现热点问题并生成趋势报告。",
-        "https://example.com/news/ai-city",
-        "2026-06-15T08:00:00+00:00",
-    ),
-    (
-        "新能源汽车 市场 数据 持续增长",
-        "公开报道显示新能源汽车相关讨论在近七天持续增长，用户关注续航、补能和价格变化。",
-        "https://example.com/news/ev-market",
-        "2026-06-16T08:00:00+00:00",
-    ),
-    (
-        "高校 软件工程 课程 强调 文档规范",
-        "软件工程课程要求学生按国家标准完成需求、设计、测试和总结文档，体现工程过程管理能力。",
-        "https://example.com/forum/software-docs",
-        "2026-06-17T08:00:00+00:00",
-    ),
-    (
-        "人工智能 趋势 分析 平台 受到关注",
-        "趋势分析平台通过采集、清洗、存储和可视化帮助用户快速理解多源信息。",
-        "https://example.com/api/trend-ai",
-        "2026-06-18T08:00:00+00:00",
-    ),
-]
+MOCK_POOLS: dict[str, list[tuple[str, str, str, int]]] = {
+    "news": [
+        (
+            "{keyword}领域取得重要突破，行业迎来新发展机遇",
+            "最新报道显示，{keyword}在实际应用中展现出巨大潜力，多家企业纷纷加大投入。",
+            "/news/breakthrough",
+            0,
+        ),
+        (
+            "{keyword}市场规模持续扩大，专家看好未来前景",
+            "业内专家指出，{keyword}市场在过去一年中增长了30%，预计未来三年仍保持高速增长。",
+            "/news/market",
+            1,
+        ),
+        (
+            "{keyword}政策利好频出，多方力量竞相布局",
+            "政府部门近日发布{keyword}相关扶持政策，引发行业广泛关注与讨论。",
+            "/news/policy",
+            2,
+        ),
+        (
+            "{keyword}技术标准正式发布，规范化进程加速",
+            "国家标准委员会正式发布{keyword}领域技术标准，为行业规范发展指明方向。",
+            "/news/standard",
+            3,
+        ),
+    ],
+    "forum": [
+        (
+            "【讨论】{keyword}到底前景如何？来聊聊真实体验",
+            "作为从业者想和大家交流一下{keyword}方向的实际感受，有没有前辈能指点一二？",
+            "/forum/thread",
+            0,
+        ),
+        (
+            "【求助】新手入门{keyword}，应该从哪里学起？",
+            "刚接触{keyword}领域，看了很多资料还是一头雾水，求推荐靠谱的学习路径。",
+            "/forum/help",
+            1,
+        ),
+        (
+            "【分享】{keyword}项目实战踩坑总结，避坑指南",
+            "做了大半年{keyword}相关项目，总结了一些常见问题和解决方案，分享给需要的朋友。",
+            "/forum/share",
+            2,
+        ),
+        (
+            "【投票】{keyword}细分方向哪个最有前景？",
+            "A.技术研发 B.产品应用 C.咨询服务 D.教育培训，大家怎么看？欢迎投票讨论。",
+            "/forum/poll",
+            3,
+        ),
+    ],
+    "api": [
+        (
+            "数据推送: {keyword}实时指标监测",
+            '{{"metric":"{keyword}","value":85.6,"trend":"rising","timestamp":"2026-06-20T10:00:00Z"}}',
+            "/api/v2/metrics",
+            0,
+        ),
+        (
+            "数据推送: {keyword}周度报告摘要",
+            '{{"report_type":"weekly","keyword":"{keyword}","mention_count":1240,"change_pct":15.3}}',
+            "/api/v2/reports",
+            1,
+        ),
+        (
+            "数据推送: {keyword}关联知识图谱",
+            '{{"nodes":[{{"name":"{keyword}"}},{{"name":"政策"}},{{"name":"市场"}}],"edges":[1,2,1,3]}}',
+            "/api/v2/graph",
+            2,
+        ),
+        (
+            "数据推送: {keyword}舆情情感分析",
+            '{{"sentiment":{{"positive":62,"neutral":28,"negative":10}},"total_samples":2450}}',
+            "/api/v2/sentiment",
+            3,
+        ),
+    ],
+    "csv": [
+        (
+            "{keyword}_季度数据汇总表",
+            "日期,指标,数值,同比\n2026-04-01,{keyword}搜索量,12500,+12%\n2026-05-01,{keyword}搜索量,13800,+15%",
+            "/export/quarterly",
+            0,
+        ),
+        (
+            "{keyword}_来源分布统计表",
+            "来源,占比,数量\n新闻媒体,45%,562\n论坛社区,30%,375\nAPI接口,15%,188\n其他渠道,10%,125",
+            "/export/sources",
+            1,
+        ),
+        (
+            "{keyword}_地域分布导出表",
+            "省份,热度指数,全国排名\n北京,98.5,1\n上海,95.2,2\n广东,92.8,3\n浙江,88.6,4",
+            "/export/geo",
+            2,
+        ),
+        (
+            "{keyword}_时间趋势导出表",
+            "日期,热度值\n2026-06-20,78\n2026-06-21,82\n2026-06-22,79\n2026-06-23,85",
+            "/export/timeline",
+            3,
+        ),
+    ],
+}
 
 
 class Repository:
@@ -199,8 +280,31 @@ class Repository:
                 raise ValueError(f"source {source_id} not found")
             return dict(row)
 
+    def _generate_mock_items(self, source: dict[str, Any], count: int = 4) -> list[tuple[str, str, str, str]]:
+        """根据数据源的 source_type 和 keywords 生成模拟采集数据。"""
+        source_type = source.get("source_type", "news")
+        keywords_str = source.get("keywords") or ""
+        keywords = [k.strip() for k in keywords_str.split(",") if k.strip()]
+        if not keywords:
+            keywords = ["信息科技"]
+
+        templates = MOCK_POOLS.get(source_type, MOCK_POOLS["news"])
+        items: list[tuple[str, str, str, str]] = []
+        now = datetime.now(timezone.utc)
+
+        for i, (title_tpl, content_tpl, url_path, days_ago) in enumerate(templates[:count]):
+            kw = keywords[i % len(keywords)]
+            title = title_tpl.format(keyword=kw)
+            content = content_tpl.format(keyword=kw)
+            url = f"https://example.com{url_path}-{i + 1}"
+            published_at = (now - timedelta(days=days_ago)).isoformat()
+            items.append((title, content, url, published_at))
+
+        return items
+
     def start_collect_task(self, source_id: int) -> dict[str, Any]:
         source = self.get_source(source_id)
+        mock_items = self._generate_mock_items(source)
         now = utc_now()
         with self.session() as conn:
             cursor = conn.execute(
@@ -209,7 +313,7 @@ class Repository:
             )
             task_id = int(cursor.lastrowid)
             success_count = 0
-            for title, content, url, published_at in DEMO_ITEMS:
+            for title, content, url, published_at in mock_items:
                 raw = RawItem(
                     source_id=source_id,
                     task_id=task_id,
@@ -227,7 +331,7 @@ class Repository:
                 SET task_status = ?, success_count = ?, failed_count = ?, finished_at = ?
                 WHERE id = ?
                 """,
-                ("success", success_count, len(DEMO_ITEMS) - success_count, utc_now(), task_id),
+                ("success", success_count, len(mock_items) - success_count, utc_now(), task_id),
             )
             self.rebuild_trends(conn)
             self._audit(conn, "start_collect_task", "collect_tasks", task_id)

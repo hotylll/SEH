@@ -5,7 +5,7 @@ from http.server import BaseHTTPRequestHandler
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from app.schemas import DataSource, response
+from app.schemas import DataSource, ValidationError, response
 from app.storage import Repository
 
 
@@ -27,6 +27,8 @@ class ApiHandler(BaseHTTPRequestHandler):
         try:
             data = self._dispatch(method, parsed.path, query)
             self._send_json(200, response(data))
+        except ValidationError as exc:
+            self._send_json(400, response(None, str(exc), 400))
         except ValueError as exc:
             self._send_json(404, response(None, str(exc), 404))
         except Exception as exc:  # pragma: no cover - defensive HTTP boundary
