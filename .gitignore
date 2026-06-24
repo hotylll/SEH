@@ -6,3 +6,6 @@ __pycache__/
 data/
 reports/
 *.db
+.venv/
+venv/
+get-pip.py
