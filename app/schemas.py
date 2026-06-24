@@ -24,7 +24,8 @@ class ValidationError(ValueError):
 
 
 VALID_SOURCE_TYPES = ("news", "forum", "api", "csv")
-VALID_SCHEDULES = ("manual", "hourly", "daily")
+VALID_SCHEDULES = ("manual", "hourly", "daily", "weekly")
+VALID_STATUSES = ("enabled", "disabled")
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,10 @@ class DataSource:
         if self.schedule not in VALID_SCHEDULES:
             raise ValidationError(
                 f"schedule 必须是 {'/'.join(VALID_SCHEDULES)} 之一，收到: {self.schedule}"
+            )
+        if self.status not in VALID_STATUSES:
+            raise ValidationError(
+                f"status 必须是 {'/'.join(VALID_STATUSES)} 之一，收到: {self.status}"
             )
 
 

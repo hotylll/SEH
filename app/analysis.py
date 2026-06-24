@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from hashlib import sha256
 from typing import Iterable
 
@@ -150,40 +150,60 @@ def clean_raw_item(raw: RawItem) -> dict[str, object]:
 
 
 def trend_direction(current: int, previous: int) -> str:
-    if previous == 0 and current > 0:
+    if previous == 0:
+        return "surge" if current > 0 else "stable"
+
+    ratio = current / previous
+    if ratio >= 1.5:
         return "surge"
-    if current > previous * 1.2:
+    if ratio > 1.1:
         return "up"
-    if current < previous * 0.8:
+    if ratio >= 0.9:
+        return "stable"
+    if ratio > 0.6:
         return "down"
-    return "stable"
+    return "plunge"
+
+
+def recency_decay(published_at: str, now: datetime | None = None) -> float:
+    if not published_at:
+        return 1.0
+    now = now or datetime.now(timezone.utc)
+    try:
+        post_time = datetime.fromisoformat(published_at.replace("Z", "+00:00"))
+    except ValueError:
+        return 1.0
+    if post_time.tzinfo is None:
+        post_time = post_time.replace(tzinfo=timezone.utc)
+    days_diff = max((now - post_time).total_seconds() / 86400, 0.0)
+    return 0.90 ** days_diff
 
 
 def calculate_trends(items: Iterable[dict[str, object]]) -> list[dict[str, object]]:
     topic_counts: Counter[str] = Counter()
     latest_time: dict[str, str] = defaultdict(str)
     for item in items:
-        keywords = str(item.get("keywords") or "").split(",")
+        keywords = [keyword.strip() for keyword in str(item.get("keywords") or "").split(",") if keyword.strip()]
         published_at = str(item.get("published_at") or "")
-        for keyword in filter(None, keywords):
+        for keyword in keywords:
             topic_counts[keyword] += 1
             latest_time[keyword] = max(latest_time[keyword], published_at)
 
     results: list[dict[str, object]] = []
-    for topic, count in topic_counts.most_common(20):
-        recency_bonus = 1.0
-        try:
-            if latest_time[topic]:
-                datetime.fromisoformat(latest_time[topic].replace("Z", "+00:00"))
-                recency_bonus = 1.2
-        except ValueError:
-            recency_bonus = 1.0
-        score = round(count * 10 * recency_bonus, 2)
+    top_topics = topic_counts.most_common(20)
+    now = datetime.now(timezone.utc)
+    for index, (topic, count) in enumerate(top_topics):
+        if len(top_topics) > 1:
+            previous_index = index + 1 if index < len(top_topics) - 1 else index - 1
+            previous_count = top_topics[previous_index][1]
+        else:
+            previous_count = 0
+        score = round(count * 10 * recency_decay(latest_time[topic], now), 2)
         results.append(
             {
                 "topic": topic,
                 "score": score,
-                "direction": trend_direction(count, max(count - 1, 0)),
+                "direction": trend_direction(count, previous_count),
             }
         )
     return results

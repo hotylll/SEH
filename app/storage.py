@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.analysis import calculate_trends, clean_raw_item, content_hash, validate_clean_result
-from app.schemas import DataSource, RawItem, utc_now
+from app.schemas import DataSource, RawItem, ValidationError, utc_now
 
 
 SCHEMA = """
@@ -304,6 +304,8 @@ class Repository:
 
     def start_collect_task(self, source_id: int) -> dict[str, Any]:
         source = self.get_source(source_id)
+        if source.get("status") == "disabled":
+            raise ValidationError(f"source {source_id} is disabled")
         mock_items = self._generate_mock_items(source)
         now = utc_now()
         with self.session() as conn:
@@ -313,6 +315,7 @@ class Repository:
             )
             task_id = int(cursor.lastrowid)
             success_count = 0
+            duplicate_count = 0
             for title, content, url, published_at in mock_items:
                 raw = RawItem(
                     source_id=source_id,
@@ -325,13 +328,28 @@ class Repository:
                 )
                 if self._insert_raw_and_clean(conn, raw):
                     success_count += 1
+                else:
+                    duplicate_count += 1
+            task_status = "success"
+            failed_count = 0
+            error_message = None
+            if not mock_items:
+                task_status = "failed"
+                failed_count = 1
+                error_message = "no mock items generated"
+            elif success_count == 0 and duplicate_count < len(mock_items):
+                task_status = "failed"
+                failed_count = len(mock_items) - duplicate_count
+                error_message = "no valid items collected"
+            elif success_count == 0 and duplicate_count == len(mock_items):
+                error_message = "duplicate items skipped"
             conn.execute(
                 """
                 UPDATE collect_tasks
-                SET task_status = ?, success_count = ?, failed_count = ?, finished_at = ?
+                SET task_status = ?, success_count = ?, failed_count = ?, error_message = ?, finished_at = ?
                 WHERE id = ?
                 """,
-                ("success", success_count, len(mock_items) - success_count, utc_now(), task_id),
+                (task_status, success_count, failed_count, error_message, utc_now(), task_id),
             )
             self.rebuild_trends(conn)
             self._audit(conn, "start_collect_task", "collect_tasks", task_id)

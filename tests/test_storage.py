@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from app.schemas import DataSource
+from app.schemas import DataSource, ValidationError
 from app.storage import Repository
 
 
@@ -42,6 +42,8 @@ class RepositoryTest(unittest.TestCase):
 
         self.assertGreater(first["success_count"], 0)
         self.assertEqual(second["success_count"], 0)
+        self.assertEqual(second["failed_count"], 0)
+        self.assertEqual(second["error_message"], "duplicate items skipped")
         self.assertEqual(len(self.repo.list_items()), first["success_count"])
 
     def test_health_check(self) -> None:
@@ -50,7 +52,19 @@ class RepositoryTest(unittest.TestCase):
         self.assertEqual(health["status"], "ok")
         self.assertIn("db", health)
 
+    def test_weekly_schedule_is_valid(self) -> None:
+        source = DataSource("周报源", "news", "https://example.com", schedule="weekly")
+
+        self.assertEqual(source.schedule, "weekly")
+
+    def test_disabled_source_cannot_collect(self) -> None:
+        source = self.repo.create_source(
+            DataSource("禁用源", "news", "https://example.com", status="disabled")
+        )
+
+        with self.assertRaises(ValidationError):
+            self.repo.start_collect_task(int(source["id"]))
+
 
 if __name__ == "__main__":
     unittest.main()
-

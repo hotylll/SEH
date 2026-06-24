@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import unittest
+from datetime import datetime, timezone
 
 from app.analysis import (
+    calculate_trends,
     clean_raw_item,
     extract_keywords,
     keyword_density,
     normalize_text,
     quality_score,
+    recency_decay,
+    trend_direction,
     validate_clean_result,
 )
 from app.schemas import RawItem
@@ -56,6 +60,34 @@ class AnalysisTest(unittest.TestCase):
     def test_validate_clean_result_rejects_incomplete_payload(self) -> None:
         with self.assertRaises(ValueError):
             validate_clean_result({"normalized_title": "标题"})
+
+    def test_trend_direction_supports_five_states(self) -> None:
+        self.assertEqual(trend_direction(10, 0), "surge")
+        self.assertEqual(trend_direction(15, 10), "surge")
+        self.assertEqual(trend_direction(12, 10), "up")
+        self.assertEqual(trend_direction(10, 10), "stable")
+        self.assertEqual(trend_direction(7, 10), "down")
+        self.assertEqual(trend_direction(5, 10), "plunge")
+
+    def test_recency_decay_lowers_old_topic_score(self) -> None:
+        now = datetime(2026, 6, 23, tzinfo=timezone.utc)
+        recent = recency_decay("2026-06-23T00:00:00+00:00", now)
+        old = recency_decay("2026-06-13T00:00:00+00:00", now)
+
+        self.assertGreater(recent, old)
+
+    def test_calculate_trends_uses_recency_and_direction(self) -> None:
+        trends = calculate_trends(
+            [
+                {"keywords": "人工智能", "published_at": "2026-06-23T00:00:00+00:00"},
+                {"keywords": "人工智能", "published_at": "2026-06-22T00:00:00+00:00"},
+                {"keywords": "新能源汽车", "published_at": "2026-06-13T00:00:00+00:00"},
+            ]
+        )
+
+        self.assertEqual(trends[0]["topic"], "人工智能")
+        self.assertIn(trends[0]["direction"], {"surge", "up"})
+        self.assertGreater(float(trends[0]["score"]), float(trends[1]["score"]))
 
 
 if __name__ == "__main__":

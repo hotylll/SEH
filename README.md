@@ -26,6 +26,20 @@ http://127.0.0.1:8000/api/v1/items
 http://127.0.0.1:8000/api/v1/trends
 ```
 
+## 前端演示
+
+启动后端服务后，直接用浏览器打开：
+
+```text
+frontend/index.html
+```
+
+页面包含系统首页、趋势分析、信息搜索、数据源管理和报表中心，默认连接：
+
+```text
+http://127.0.0.1:8000
+```
+
 ## 测试
 
 ```powershell
@@ -45,4 +59,3 @@ python -m unittest discover -s tests -v
 | GET | `/api/v1/items/{item_id}` | 查询信息详情 |
 | GET | `/api/v1/trends` | 查询趋势榜单 |
 | POST | `/api/v1/reports` | 生成报表记录 |
-

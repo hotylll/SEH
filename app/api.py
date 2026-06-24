@@ -18,6 +18,11 @@ class ApiHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802 - stdlib API
         self._handle("POST")
 
+    def do_OPTIONS(self) -> None:  # noqa: N802 - stdlib API
+        self.send_response(204)
+        self._send_cors_headers()
+        self.end_headers()
+
     def log_message(self, format: str, *args: object) -> None:
         return
 
@@ -48,6 +53,7 @@ class ApiHandler(BaseHTTPRequestHandler):
                 endpoint=str(payload.get("endpoint", "")),
                 keywords=str(payload.get("keywords", "")),
                 schedule=str(payload.get("schedule", "manual")),
+                status=str(payload.get("status", "enabled")),
             )
             return repo.create_source(source)
         if method == "POST" and path == "/api/v1/tasks/collect":
@@ -86,8 +92,13 @@ class ApiHandler(BaseHTTPRequestHandler):
     def _send_json(self, status: int, payload: dict[str, Any]) -> None:
         raw = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
         self.send_response(status)
+        self._send_cors_headers()
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
         self.wfile.write(raw)
 
+    def _send_cors_headers(self) -> None:
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
