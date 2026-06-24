@@ -33,6 +33,9 @@ class ApiHandler(BaseHTTPRequestHandler):
         self._send_cors_headers()
         self.end_headers()
 
+    def do_DELETE(self) -> None:  # noqa: N802 - stdlib API
+        self._handle("DELETE")
+
     def log_message(self, format: str, *args: object) -> None:
         return
 
@@ -42,6 +45,13 @@ class ApiHandler(BaseHTTPRequestHandler):
         # 根路径 → 渲染前端 SPA
         if method == "GET" and parsed.path == "/":
             self._serve_frontend()
+            return
+        # 前端静态资源
+        if method == "GET" and parsed.path == "/styles.css":
+            self._serve_static("styles.css", "text/css; charset=utf-8")
+            return
+        if method == "GET" and parsed.path == "/app.js":
+            self._serve_static("app.js", "application/javascript; charset=utf-8")
             return
         try:
             data = self._dispatch(method, parsed.path, query)
@@ -112,6 +122,10 @@ class ApiHandler(BaseHTTPRequestHandler):
             )
         if method == "POST" and path == "/api/v1/analyze":
             return self._handle_analyze()
+        if method == "DELETE" and path.startswith("/api/v1/sources/"):
+            source_id = self._path_positive_int(path, "source_id")
+            repo.delete_source(source_id)
+            return {"deleted": source_id}
         raise ValueError(f"route {method} {path} not found")
 
     def _read_json(self) -> dict[str, Any]:
@@ -204,9 +218,25 @@ class ApiHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
+    def _serve_static(self, filename: str, content_type: str) -> None:
+        frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
+        filepath = frontend_dir / filename
+        if not filepath.exists():
+            self.send_response(404)
+            self._send_cors_headers()
+            self.end_headers()
+            return
+        raw = filepath.read_bytes()
+        self.send_response(200)
+        self._send_cors_headers()
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
     def _send_cors_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
     def _handle_analyze(self) -> dict[str, Any]:

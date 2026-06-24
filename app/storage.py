@@ -414,9 +414,11 @@ class Repository:
     def list_items(self, keyword: str | None = None, source_id: int | None = None, limit: int = 50) -> list[dict[str, Any]]:
         sql = """
             SELECT raw_items.id, raw_items.source_id, raw_items.title, raw_items.url, raw_items.published_at,
-                   clean_items.normalized_title, clean_items.keywords, clean_items.quality_score
+                   clean_items.normalized_title, clean_items.keywords, clean_items.quality_score,
+                   COALESCE(ds.name, '未知来源') AS source_name
             FROM raw_items
             JOIN clean_items ON clean_items.raw_id = raw_items.id
+            LEFT JOIN data_sources ds ON ds.id = raw_items.source_id
             WHERE 1=1
         """
         params: list[Any] = []
@@ -447,6 +449,19 @@ class Repository:
             if row is None:
                 raise ValueError(f"item {item_id} not found")
             return dict(row)
+
+    def delete_source(self, source_id: int) -> None:
+        with self.session() as conn:
+            row = conn.execute("SELECT id FROM data_sources WHERE id = ?", (source_id,)).fetchone()
+            if row is None:
+                raise ValueError(f"source {source_id} not found")
+            # 级联删除关联数据
+            conn.execute("DELETE FROM clean_items WHERE raw_id IN (SELECT id FROM raw_items WHERE source_id = ?)", (source_id,))
+            conn.execute("DELETE FROM raw_items WHERE source_id = ?", (source_id,))
+            conn.execute("DELETE FROM collect_tasks WHERE source_id = ?", (source_id,))
+            conn.execute("DELETE FROM data_sources WHERE id = ?", (source_id,))
+            self.rebuild_trends(conn)
+            self._audit(conn, "delete_source", "data_sources", source_id)
 
     def list_trends(self, limit: int = 20) -> list[dict[str, Any]]:
         with self.session() as conn:
