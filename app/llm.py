@@ -134,6 +134,8 @@ def _rule_filter_topics(
         r"^.*[、，。！？].*[、，。！？].*[、，。！？].+$",
         r"^(什么是|如何|怎样|怎么|为什么|哪些|哪个).{10,}",
         r"^.*[。？].+$",
+        r'^.{10,}.*[""」].+$',  # 含引号的公文片段
+        r"^(为深入实施|促进生产力|推动人工|重塑人类生产).+",  # 特定政府公文句式
     )
     import re
     compiled = [re.compile(p, re.IGNORECASE) for p in _GARBAGE_PATTERNS]
