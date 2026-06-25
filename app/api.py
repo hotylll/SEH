@@ -261,16 +261,18 @@ class ApiHandler(BaseHTTPRequestHandler):
                 seen_urls.add(r["url"])
                 all_results.append(r)
 
-        # Exa 搜索
-        try:
-            exa = ExaMCPClient(api_key=os.environ.get("EXA_API_KEY") or None)
-            exa_results = exa.search(topic, num_results=4)
-            for r in exa_results:
-                if r["url"] not in seen_urls:
-                    seen_urls.add(r["url"])
-                    all_results.append(r)
-        except Exception as exc:
-            print(f"[api] Exa 搜索失败: {exc}")
+        # Exa 搜索（配置 API Key 后作为增强来源）
+        exa_key = os.environ.get("EXA_API_KEY") or ""
+        if exa_key:
+            try:
+                exa = ExaMCPClient(api_key=exa_key)
+                exa_results = exa.search(topic, num_results=4)
+                for r in exa_results:
+                    if r["url"] not in seen_urls:
+                        seen_urls.add(r["url"])
+                        all_results.append(r)
+            except Exception as exc:
+                print(f"[api] Exa 搜索失败: {exc}")
 
         # 2) AI 分析
         analysis = analyze_topic(topic, all_results)

@@ -393,7 +393,7 @@ class Repository:
                 failed_count = len(items) - duplicate_count
                 error_message = "没有有效的采集项"
             elif success_count == 0 and duplicate_count == len(items):
-                error_message = "所有项均为重复，已跳过"
+                error_message = "duplicate items skipped"
             conn.execute(
                 """
                 UPDATE collect_tasks
@@ -996,21 +996,29 @@ class Repository:
         if self.list_sources():
             return
         searxng_url = os.environ.get("SEARXNG_URL") or ""
+        exa_key = os.environ.get("EXA_API_KEY") or ""
         exa_endpoint = "https://mcp.exa.ai/mcp"
-        demo_sources = [
-            DataSource(name="科技新闻（SearXNG）", source_type="news", endpoint=searxng_url, keywords="人工智能,大模型,AI应用", schedule="daily"),
-            DataSource(name="产业动态（SearXNG）", source_type="news", endpoint=searxng_url, keywords="新能源汽车,半导体,光伏", schedule="daily"),
-            DataSource(name="全球资讯（Exa）", source_type="news", endpoint=exa_endpoint, keywords="AI, technology, startup", schedule="daily"),
-            DataSource(name="开源社区", source_type="forum", endpoint=searxng_url, keywords="Python,开源项目,开发者", schedule="weekly"),
-            DataSource(name="财经资讯", source_type="api", endpoint=searxng_url, keywords="宏观经济,数字经济,创投", schedule="daily"),
-        ]
+        demo_sources: list[DataSource] = []
+        if searxng_url:
+            demo_sources.extend([
+                DataSource(name="科技新闻（SearXNG）", source_type="news", endpoint=searxng_url, keywords="人工智能,大模型,AI应用", schedule="daily"),
+                DataSource(name="产业动态（SearXNG）", source_type="news", endpoint=searxng_url, keywords="新能源汽车,半导体,光伏", schedule="daily"),
+                DataSource(name="开源社区（SearXNG）", source_type="forum", endpoint=searxng_url, keywords="Python,开源项目,开发者", schedule="weekly"),
+                DataSource(name="财经资讯（SearXNG）", source_type="api", endpoint=searxng_url, keywords="宏观经济,数字经济,创投", schedule="daily"),
+            ])
         if not searxng_url:
-            demo_sources = [s for s in demo_sources if "exa" in s.endpoint.lower()]
-            if not demo_sources:
-                print("[seed] 未配置 SEARXNG_URL，跳过自动创建演示数据源")
-                return
+            demo_sources = [
+                DataSource(name="科技新闻（演示）", source_type="news", endpoint="https://example.com/news", keywords="人工智能,大模型,AI应用", schedule="daily"),
+                DataSource(name="产业动态（演示）", source_type="news", endpoint="https://example.com/industry", keywords="新能源汽车,半导体,光伏", schedule="daily"),
+                DataSource(name="开源社区（演示）", source_type="forum", endpoint="https://example.com/forum", keywords="Python,开源项目,开发者", schedule="weekly"),
+                DataSource(name="财经资讯（演示）", source_type="api", endpoint="https://example.com/finance", keywords="宏观经济,数字经济,创投", schedule="daily"),
+            ]
+        if exa_key:
+            demo_sources.append(DataSource(name="全球资讯（Exa）", source_type="news", endpoint=exa_endpoint, keywords="AI, technology, startup", schedule="daily"))
         for source in demo_sources:
             created = self.create_source(source)
+            if is_exa_endpoint(source.endpoint):
+                continue
             try:
                 self.start_collect_task(int(created["id"]))
             except Exception as exc:
